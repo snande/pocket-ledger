@@ -16,5 +16,5 @@ export async function submitQuickEntry(text, store, now) {
   if (!parsed) return null;
 
   const { amount, label } = parsed;
-  return store.addEntry({ amount, label, category: categorise(label) });
+  return store.addEntry({ amount, label, category: categorise(label) }, now);
 }
