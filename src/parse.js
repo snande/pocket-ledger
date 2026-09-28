@@ -1,6 +1,8 @@
 const AMOUNT_FIRST = /^\s*(?:₹|rs\.?\s*)?(\d+(?:\.\d{1,2})?)\s+(.+)$/i;
 const AMOUNT_LAST = /^(.+?)\s+(?:₹|rs\.?\s*)?(\d+(?:\.\d{1,2})?)\s*$/i;
 
+// Amount-first wins when both ends look numeric ("120 chai 50" -> 120, "chai 50").
+// A bare number ("120") matches neither regex because each requires a label plus whitespace.
 export function parseEntry(text) {
   if (typeof text !== 'string' || text.trim() === '') return null;
 
