@@ -121,6 +121,14 @@ export function initApp(storageApi = storage, now = () => new Date()) {
   return ready;
 }
 
+export function registerServiceWorker(nav = globalThis.navigator) {
+  if (!nav || !('serviceWorker' in nav)) return null;
+  return nav.serviceWorker
+    .register('./sw.js', { scope: './' })
+    .catch((err) => console.error('service worker registration failed', err));
+}
+
 if (typeof document !== 'undefined' && document.getElementById('quick-entry')) {
   initApp();
+  registerServiceWorker();
 }
