@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { registerServiceWorker } from '../src/app.js';
 
 const root = new URL('../', import.meta.url);
-const swSource = readFileSync(fileURLToPath(new URL('sw.js', root)), 'utf8');
+const readRoot = (path) => readFileSync(fileURLToPath(new URL(path, root)), 'utf8');
+const swSource = readRoot('sw.js');
 
 function loadWorker({ cacheKeys = [], cached = {}, network } = {}) {
   const listeners = {};
@@ -42,15 +43,18 @@ const req = (url, init = {}) => ({ url, method: 'GET', mode: 'cors', ...init });
 
 test('cache name is versioned with the pocket-ledger-shell- prefix', () => {
   const { exports } = loadWorker();
-  assert.match(exports.CACHE, /^pocket-ledger-shell-v\d+$/);
+  assert.equal(exports.CACHE, 'pocket-ledger-shell-v1');
 });
 
-test('PRECACHE_URLS is relative and every entry exists on disk', () => {
-  const { exports } = loadWorker();
-  const urls = exports.PRECACHE_URLS;
-  for (const required of ['./', './index.html', './styles.css', './manifest.webmanifest']) {
-    assert.ok(urls.includes(required), `missing ${required}`);
-  }
+test('PRECACHE_URLS starts with the five shell entries and every entry exists on disk', () => {
+  const urls = [...loadWorker().exports.PRECACHE_URLS];
+  assert.deepEqual(urls.slice(0, 5), [
+    './',
+    './index.html',
+    './app.js',
+    './styles.css',
+    './manifest.webmanifest',
+  ]);
   for (const url of urls) {
     assert.ok(url.startsWith('./'), `must be relative: ${url}`);
     if (url === './') continue;
@@ -58,19 +62,25 @@ test('PRECACHE_URLS is relative and every entry exists on disk', () => {
   }
 });
 
-test('PRECACHE_URLS covers every module reachable from src/app.js', () => {
-  const { exports } = loadWorker();
+test('PRECACHE_URLS covers the script index.html loads and every module reachable from it', () => {
+  const { PRECACHE_URLS } = loadWorker().exports;
+  const entry = readRoot('index.html').match(/<script[^>]*src="(\.\/[^"]+)"/);
+  assert.ok(entry, 'index.html script tag');
   const seen = new Set();
-  const walk = (file) => {
-    if (seen.has(file)) return;
-    seen.add(file);
-    const text = readFileSync(fileURLToPath(new URL(`src/${file}`, root)), 'utf8');
-    for (const m of text.matchAll(/from '\.\/([\w-]+\.js)'/g)) walk(m[1]);
+  const walk = (path) => {
+    if (seen.has(path)) return;
+    seen.add(path);
+    const base = new URL(path, root);
+    const text = readFileSync(fileURLToPath(base), 'utf8');
+    for (const m of text.matchAll(/(?:from|import)\s+'(\.[^']+)'/g)) {
+      const resolved = new URL(m[1], base);
+      walk(`./${resolved.href.slice(root.href.length)}`);
+    }
   };
-  walk('app.js');
-  assert.ok(seen.size > 1);
-  for (const file of seen) {
-    assert.ok(exports.PRECACHE_URLS.includes(`./src/${file}`), `not precached: src/${file}`);
+  walk(entry[1]);
+  assert.ok(seen.size > 2, 'expected root app.js plus its imported modules');
+  for (const path of seen) {
+    assert.ok(PRECACHE_URLS.includes(path), `not precached: ${path}`);
   }
 });
 
@@ -82,14 +92,15 @@ test('install precaches the list into CACHE and then skips waiting', async () =>
   assert.equal(calls.skipWaiting, 1);
 });
 
-test('activate deletes only stale pocket-ledger-shell- caches, then claims clients', async () => {
-  const { CACHE } = loadWorker().exports;
-  const { listeners, calls } = loadWorker({
-    cacheKeys: ['pocket-ledger-shell-v0', CACHE, 'other-cache', 'pocket-ledger-shell-old'],
+test('activate deletes stale pocket-ledger-shell- caches, keeps the current one, then claims clients', async () => {
+  const { listeners, calls, exports } = loadWorker({
+    cacheKeys: ['pocket-ledger-shell-v0', 'pocket-ledger-shell-v1', 'other-cache', 'pocket-ledger-shell-old'],
   });
+  assert.equal(exports.CACHE, 'pocket-ledger-shell-v1');
   await dispatch(listeners.activate, {});
-  assert.deepEqual(calls.deleted.sort(), ['pocket-ledger-shell-old', 'pocket-ledger-shell-v0']);
-  assert.ok(!calls.deleted.includes(CACHE));
+  assert.deepEqual([...calls.deleted].sort(), ['pocket-ledger-shell-old', 'pocket-ledger-shell-v0']);
+  assert.ok(!calls.deleted.includes('pocket-ledger-shell-v1'));
+  assert.ok(!calls.deleted.includes('other-cache'));
   assert.equal(calls.claim, 1);
 });
 
@@ -126,7 +137,7 @@ test('offline non-navigation misses reject instead of returning the shell', asyn
   await assert.rejects(dispatch(listeners.fetch, { request: req('http://localhost:8000/x.json') }));
 });
 
-test('fetch does not intercept non-GET or cross-origin requests', async () => {
+test('fetch does not intercept non-GET or cross-origin requests', () => {
   const { listeners } = loadWorker();
   for (const request of [
     req('http://localhost:8000/', { method: 'POST' }),
@@ -138,24 +149,27 @@ test('fetch does not intercept non-GET or cross-origin requests', async () => {
   }
 });
 
-test('registerServiceWorker registers ./sw.js with scope ./ when supported', async () => {
+test('registerServiceWorker registers ./sw.js with scope ./ and resolves to the registration', async () => {
   const calls = [];
-  const nav = { serviceWorker: { register: (...args) => { calls.push(args); return Promise.resolve(); } } };
-  await registerServiceWorker(nav);
+  const registration = { scope: './' };
+  const nav = {
+    serviceWorker: { register: (...args) => { calls.push(args); return Promise.resolve(registration); } },
+  };
+  assert.equal(await registerServiceWorker(nav), registration);
   assert.deepEqual(calls, [['./sw.js', { scope: './' }]]);
 });
 
-test('registerServiceWorker is a no-op without serviceWorker support', () => {
-  assert.equal(registerServiceWorker({}), null);
-  assert.equal(registerServiceWorker(null), null);
+test('registerServiceWorker resolves to null without serviceWorker support', async () => {
+  assert.equal(await registerServiceWorker({}), null);
+  assert.equal(await registerServiceWorker(null), null);
 });
 
-test('registerServiceWorker swallows registration failures', async () => {
+test('registerServiceWorker resolves to null when registration fails', async () => {
   const nav = { serviceWorker: { register: () => Promise.reject(new Error('nope')) } };
   const original = console.error;
   console.error = () => {};
   try {
-    await registerServiceWorker(nav);
+    assert.equal(await registerServiceWorker(nav), null);
   } finally {
     console.error = original;
   }

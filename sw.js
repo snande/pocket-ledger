@@ -1,12 +1,14 @@
 const CACHE = 'pocket-ledger-shell-v1';
 const CACHE_PREFIX = 'pocket-ledger-shell-';
 
+// The first five entries are the app shell; the ./src/ modules are what ./app.js
+// imports at runtime and must be precached for the page to run offline after one visit.
 const PRECACHE_URLS = [
   './',
   './index.html',
+  './app.js',
   './styles.css',
   './manifest.webmanifest',
-  './icons/icon.svg',
   './src/app.js',
   './src/parse.js',
   './src/categorise.js',

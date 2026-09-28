@@ -121,11 +121,15 @@ export function initApp(storageApi = storage, now = () => new Date()) {
   return ready;
 }
 
-export function registerServiceWorker(nav = globalThis.navigator) {
+// Resolves to the ServiceWorkerRegistration, or null when unsupported or failed.
+export async function registerServiceWorker(nav = globalThis.navigator) {
   if (!nav || !('serviceWorker' in nav)) return null;
-  return nav.serviceWorker
-    .register('./sw.js', { scope: './' })
-    .catch((err) => console.error('service worker registration failed', err));
+  try {
+    return await nav.serviceWorker.register('./sw.js', { scope: './' });
+  } catch (err) {
+    console.error('service worker registration failed', err);
+    return null;
+  }
 }
 
 if (typeof document !== 'undefined' && document.getElementById('quick-entry')) {
