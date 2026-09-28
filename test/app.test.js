@@ -23,6 +23,14 @@ test('index.html wires up stylesheet, module script, form, error and list', () =
   assert.match(html, /<button[^>]*type="submit"/);
 });
 
+test('main.js persists through storage.js and no longer uses the memory store', () => {
+  const main = read('src/main.js');
+  assert.match(main, /from '\.\/storage\.js'/);
+  assert.doesNotMatch(main, /createMemoryStore/);
+  assert.match(main, /hydrate\(/);
+  assert.match(main, /SAVE_ERROR_MESSAGE/);
+});
+
 test('quick-entry form directly contains exactly one text input', () => {
   const html = read('index.html');
   const form = html.match(/<form[^>]*id="quick-entry"[^>]*>([\s\S]*?)<\/form>/);
