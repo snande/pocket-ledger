@@ -69,6 +69,22 @@ test('listEntriesForDay does not expose the store internals', async () => {
   assert.equal((await store.listEntriesForDay(new Date())).length, 1);
 });
 
+test('listEntries returns every entry newest first', async () => {
+  const store = createMemoryStore();
+  await store.addEntry({ amount: 1, label: 'old', category: 'Other', createdAt: new Date(2026, 7, 1).toISOString() });
+  await store.addEntry({ amount: 2, label: 'new', category: 'Other', createdAt: new Date(2026, 8, 28).toISOString() });
+  assert.deepEqual((await store.listEntries()).map((e) => e.label), ['new', 'old']);
+});
+
+test('deleteEntry removes only the entry with that id', async () => {
+  const store = createMemoryStore();
+  const a = await store.addEntry({ amount: 1, label: 'a', category: 'Other' });
+  const b = await store.addEntry({ amount: 2, label: 'b', category: 'Other' });
+  assert.equal(await store.deleteEntry(a.id), true);
+  assert.deepEqual((await store.listEntries()).map((e) => e.id), [b.id]);
+  assert.equal(await store.deleteEntry(a.id), false);
+});
+
 test('addEntry without createdAt stamps the current time', async () => {
   const store = createMemoryStore();
   const before = Date.now();
