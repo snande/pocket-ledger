@@ -1,47 +1,31 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import '../app.js';
+import { readFileSync, readdirSync } from 'node:fs';
 
 const read = (name) => readFileSync(new URL(`../${name}`, import.meta.url), 'utf8');
+const srcFiles = readdirSync(new URL('../src/', import.meta.url))
+  .filter((name) => name.endsWith('.js'))
+  .map((name) => `src/${name}`);
 
-test('addEntry prepends text and returns a new array', () => {
-  const { addEntry } = globalThis;
-  assert.deepEqual(addEntry([], '120 chai'), ['120 chai']);
-  assert.deepEqual(addEntry(['a'], 'b'), ['b', 'a']);
-});
-
-test('addEntry trims the text before prepending', () => {
-  const { addEntry } = globalThis;
-  assert.deepEqual(addEntry([], '  120 chai  '), ['120 chai']);
-});
-
-test('addEntry ignores empty and whitespace-only text', () => {
-  const { addEntry } = globalThis;
-  assert.deepEqual(addEntry(['a'], ''), ['a']);
-  assert.deepEqual(addEntry(['a'], '   \t '), ['a']);
-});
-
-test('addEntry does not mutate its input', () => {
-  const { addEntry } = globalThis;
-  const list = ['a'];
-  const next = addEntry(list, 'b');
-  assert.deepEqual(list, ['a']);
-  assert.notEqual(next, list);
-  assert.notEqual(addEntry(list, ''), list);
-});
-
-test('shell files reference no absolute http(s) URLs', () => {
-  for (const name of ['index.html', 'app.js', 'styles.css']) {
+test('page files reference no absolute http(s) URLs', () => {
+  for (const name of ['index.html', 'styles.css', ...srcFiles]) {
     assert.doesNotMatch(read(name), /https?:\/\//i, name);
   }
 });
 
-test('index.html wires up assets, input, button and list', () => {
+test('index.html wires up stylesheet, module script, form, error and list', () => {
   const html = read('index.html');
   assert.match(html, /href="\.\/styles\.css"/);
-  assert.match(html, /src="\.\/app\.js"/);
-  assert.match(html, /id="entry-input"/);
-  assert.match(html, /id="entry-list"/);
+  assert.match(html, /<script[^>]*type="module"[^>]*src="\.\/src\/main\.js"/);
+  assert.match(html, /<form[^>]*id="quick-entry"/);
+  assert.match(html, /<p[^>]*id="entry-error"/);
+  assert.match(html, /<ul[^>]*id="today-list"/);
   assert.match(html, /<button[^>]*type="submit"/);
+});
+
+test('quick-entry form holds a single text input', () => {
+  const html = read('index.html');
+  const form = html.match(/<form[^>]*id="quick-entry"[\s\S]*?<\/form>/)[0];
+  assert.equal(form.match(/<input\b/g).length, 1);
+  assert.match(form, /<input[^>]*type="text"/);
 });
