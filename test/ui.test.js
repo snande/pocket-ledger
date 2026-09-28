@@ -161,14 +161,31 @@ test('render accepts ISO-string createdAt as written by the store', () => {
   assert.equal(dom['total-month'].textContent, '₹40.00');
 });
 
-test('an entry from earlier this month counts toward the month only and gets no row', () => {
+test('an entry from earlier this month counts toward the month only but still gets a row', () => {
   const now = new Date();
   if (now.getDate() === 1) return; // no earlier day exists this month
   const earlier = new Date(now.getFullYear(), now.getMonth(), 1, 12).getTime();
   ui.render([entry('a', 75, earlier), entry('b', 5)]);
   assert.equal(dom['total-today'].textContent, '₹5.00');
   assert.equal(dom['total-month'].textContent, '₹80.00');
-  assert.deepEqual(dom['today-list'].deleteButtons().map((b) => b.getAttribute('data-id')), ['b']);
+  assert.deepEqual(dom['today-list'].deleteButtons().map((b) => b.getAttribute('data-id')), ['b', 'a']);
+  assert.deepEqual(
+    dom['today-list'].children.map((li) => li.textContent),
+    ['₹5 chai Food Delete', '₹75 chai Food Delete'],
+  );
+});
+
+test('entries from a previous month are listed but count toward neither total', () => {
+  const now = new Date();
+  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 15, 12).getTime();
+  ui.render([entry('a', 75, lastMonth), entry('b', 5)]);
+  assert.equal(dom['total-today'].textContent, '₹5.00');
+  assert.equal(dom['total-month'].textContent, '₹5.00');
+  assert.deepEqual(dom['today-list'].deleteButtons().map((b) => b.getAttribute('data-id')), ['b', 'a']);
+  assert.deepEqual(
+    dom['today-list'].children.map((li) => li.textContent),
+    ['₹5 chai Food Delete', '₹75 chai Food Delete'],
+  );
 });
 
 test('entries with an unparseable createdAt or invalid amount are skipped with a warning', () => {

@@ -16,11 +16,19 @@ test('page files reference no absolute http(s) URLs', () => {
 test('index.html wires up stylesheet, module script, form, error and list', () => {
   const html = read('index.html');
   assert.match(html, /href="\.\/styles\.css"/);
-  assert.match(html, /<script[^>]*type="module"[^>]*src="\.\/src\/main\.js"/);
+  assert.match(html, /<script[^>]*type="module"[^>]*src="\.\/src\/app\.js"/);
   assert.match(html, /<form[^>]*id="quick-entry"/);
   assert.match(html, /<p[^>]*id="entry-error"/);
   assert.match(html, /<ul[^>]*id="today-list"/);
   assert.match(html, /<button[^>]*type="submit"/);
+});
+
+test('app.js is the entry script and persists through storage.js, not the memory store', () => {
+  const app = read('src/app.js');
+  assert.match(app, /from '\.\/storage\.js'/);
+  assert.doesNotMatch(app, /createMemoryStore/);
+  assert.match(app, /hydrate\(/);
+  assert.match(app, /SAVE_ERROR_MESSAGE/);
 });
 
 test('quick-entry form directly contains exactly one text input', () => {
