@@ -29,8 +29,11 @@ test('submitQuickEntry falls back to Other for unknown labels', async () => {
   assert.equal(entry.category, 'Other');
 });
 
-test('formatAmount prefixes ₹ and uses en-IN grouping', () => {
+test('formatAmount renders 120 as ₹120', () => {
   assert.equal(formatAmount(120), '₹120');
+});
+
+test('formatAmount uses en-IN digit grouping', () => {
   assert.equal(formatAmount(1200), '₹1,200');
   assert.equal(formatAmount(100000), '₹1,00,000');
 });

@@ -23,9 +23,20 @@ test('index.html wires up stylesheet, module script, form, error and list', () =
   assert.match(html, /<button[^>]*type="submit"/);
 });
 
-test('quick-entry form holds a single text input', () => {
+test('quick-entry form directly contains exactly one text input', () => {
+  const html = read('index.html');
+  const form = html.match(/<form[^>]*id="quick-entry"[^>]*>([\s\S]*?)<\/form>/);
+  assert.ok(form, 'form#quick-entry with a closing tag');
+  const inputs = form[1].match(/<input\b[^>]*>/g) ?? [];
+  assert.equal(inputs.length, 1);
+  assert.match(inputs[0], /type="text"/);
+  // no other input anywhere on the page: the form's input is the single one
+  assert.equal((html.match(/<input\b/g) ?? []).length, 1);
+});
+
+test('#entry-error and #today-list sit outside the form', () => {
   const html = read('index.html');
   const form = html.match(/<form[^>]*id="quick-entry"[\s\S]*?<\/form>/)[0];
-  assert.equal(form.match(/<input\b/g).length, 1);
-  assert.match(form, /<input[^>]*type="text"/);
+  assert.doesNotMatch(form, /id="entry-error"/);
+  assert.doesNotMatch(form, /id="today-list"/);
 });

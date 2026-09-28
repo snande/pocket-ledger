@@ -12,6 +12,8 @@ export function createMemoryStore() {
   const entries = [];
 
   return {
+    // createdAt is optional: callers that already know "now" (submitQuickEntry)
+    // may pass an ISO string; otherwise the store stamps the current time itself.
     async addEntry({ amount, label, category, createdAt } = {}) {
       const entry = {
         id: crypto.randomUUID(),
@@ -25,14 +27,11 @@ export function createMemoryStore() {
     },
 
     async listEntriesForDay(date) {
+      // Reverse first so the stable sort leaves same-timestamp entries latest-added first.
       return entries
-        .map((entry, index) => ({ entry, index }))
-        .filter(({ entry }) => sameLocalDay(new Date(entry.createdAt), date))
-        .sort(
-          (a, b) =>
-            new Date(b.entry.createdAt) - new Date(a.entry.createdAt) || b.index - a.index,
-        )
-        .map(({ entry }) => entry);
+        .filter((entry) => sameLocalDay(new Date(entry.createdAt), date))
+        .reverse()
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     },
   };
 }

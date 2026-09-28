@@ -56,13 +56,24 @@ test('entries with identical timestamps list latest-added first', async () => {
   const createdAt = new Date(2026, 8, 28, 10).toISOString();
   await store.addEntry({ amount: 1, label: 'first', category: 'Other', createdAt });
   await store.addEntry({ amount: 2, label: 'second', category: 'Other', createdAt });
+  await store.addEntry({ amount: 3, label: 'third', category: 'Other', createdAt });
   const list = await store.listEntriesForDay(new Date(2026, 8, 28));
-  assert.deepEqual(list.map((e) => e.label), ['second', 'first']);
+  assert.deepEqual(list.map((e) => e.label), ['third', 'second', 'first']);
+});
+
+test('listEntriesForDay does not expose the store internals', async () => {
+  const store = createMemoryStore();
+  await store.addEntry({ amount: 5, label: 'now', category: 'Other' });
+  const first = await store.listEntriesForDay(new Date());
+  first.pop();
+  assert.equal((await store.listEntriesForDay(new Date())).length, 1);
 });
 
 test('addEntry without createdAt stamps the current time', async () => {
   const store = createMemoryStore();
-  await store.addEntry({ amount: 5, label: 'now', category: 'Other' });
-  const list = await store.listEntriesForDay(new Date());
-  assert.equal(list.length, 1);
+  const before = Date.now();
+  const entry = await store.addEntry({ amount: 5, label: 'now', category: 'Other' });
+  const stamped = new Date(entry.createdAt).getTime();
+  assert.ok(stamped >= before && stamped <= Date.now());
+  assert.equal((await store.listEntriesForDay(new Date())).length, 1);
 });
