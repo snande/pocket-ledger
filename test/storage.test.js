@@ -15,6 +15,7 @@ const {
 } = storage;
 
 const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+const originalIndexedDB = Object.getOwnPropertyDescriptor(globalThis, 'indexedDB');
 
 function stubNavigator(value) {
   Object.defineProperty(globalThis, 'navigator', { value, configurable: true, writable: true });
@@ -25,8 +26,17 @@ function restoreNavigator() {
   else delete globalThis.navigator;
 }
 
+function stubIndexedDB(value) {
+  Object.defineProperty(globalThis, 'indexedDB', { value, configurable: true, writable: true });
+}
+
+function restoreIndexedDB() {
+  Object.defineProperty(globalThis, 'indexedDB', originalIndexedDB);
+}
+
 beforeEach(async () => {
   restoreNavigator();
+  restoreIndexedDB();
   await openStore();
   await clearAll();
 });
@@ -62,6 +72,20 @@ test('addEntry returns the stored entry with a generated string id', async () =>
   });
   const other = await addEntry({ amount: 1, note: 'x', category: 'y', createdAt });
   assert.notEqual(other.id, entry.id);
+});
+
+test('addEntry defaults createdAt to now and rejects non-numeric timestamps', async () => {
+  const before = Date.now();
+  const entry = await addEntry({ amount: 5, note: 'n', category: 'c' });
+  assert.ok(entry.createdAt >= before && entry.createdAt <= Date.now());
+
+  for (const bad of ['2026-09-28T00:00:00Z', NaN, Infinity, null, new Date()]) {
+    await assert.rejects(
+      addEntry({ amount: 1, note: 'n', category: 'c', createdAt: bad }),
+      TypeError,
+    );
+  }
+  assert.equal((await listEntries()).length, 1);
 });
 
 test('entries survive closing and reopening the database', async () => {
@@ -106,6 +130,54 @@ test('clearAll empties the store', async () => {
   await addEntry({ amount: 2, note: 'b', category: 'x', createdAt: 2 });
   await clearAll();
   assert.deepEqual(await listEntries(), []);
+});
+
+test('concurrent openStore calls share one connection', async () => {
+  await closeStore();
+  let opens = 0;
+  const realOpen = indexedDB.open.bind(indexedDB);
+  const realIndexedDB = indexedDB;
+  stubIndexedDB({
+    open: (...args) => {
+      opens++;
+      return realOpen(...args);
+    },
+  });
+  try {
+    const [a, b, c] = await Promise.all([openStore(), openStore(), openStore()]);
+    assert.equal(a, b);
+    assert.equal(b, c);
+    assert.equal(opens, 1);
+    await addEntry({ amount: 1, note: 'n', category: 'c', createdAt: 1 });
+    assert.equal(opens, 1);
+  } finally {
+    stubIndexedDB(realIndexedDB);
+  }
+});
+
+test('a failed open rejects every concurrent caller and the next call reconnects', async () => {
+  await closeStore();
+  let opens = 0;
+  stubIndexedDB({
+    open: () => {
+      opens++;
+      const request = {};
+      setTimeout(() => {
+        request.error = new Error('open failed');
+        request.onerror();
+      }, 0);
+      return request;
+    },
+  });
+  const results = await Promise.allSettled([openStore(), openStore()]);
+  assert.deepEqual(results.map((r) => r.status), ['rejected', 'rejected']);
+  assert.equal(opens, 1);
+
+  restoreIndexedDB();
+  const db = await openStore();
+  assert.equal(db.name, 'pocket-ledger');
+  await addEntry({ amount: 1, note: 'n', category: 'c', createdAt: 1 });
+  assert.equal((await listEntries()).length, 1);
 });
 
 test('openStore requests persistent storage when available', async () => {

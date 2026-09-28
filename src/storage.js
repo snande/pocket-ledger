@@ -24,6 +24,11 @@ function requestPersistence() {
 
 function connect() {
   const promise = new Promise((resolve, reject) => {
+    // Drop the cached promise synchronously, before settling, so a caller that
+    // retries right after a failure always starts a fresh connection.
+    const forget = () => {
+      if (dbPromise === promise) dbPromise = null;
+    };
     const request = indexedDB.open(DB_NAME, version);
     request.onupgradeneeded = () => {
       const db = request.result;
@@ -33,21 +38,17 @@ function connect() {
     };
     request.onsuccess = () => {
       const db = request.result;
-      const reset = () => {
-        if (dbPromise === promise) dbPromise = null;
-      };
-      db.onclose = reset;
+      db.onclose = forget;
       db.onversionchange = () => {
         db.close();
-        reset();
+        forget();
       };
       resolve(db);
     };
-    request.onerror = () => reject(request.error);
-    request.onblocked = () => reject(new Error('pocket-ledger database open blocked'));
-  });
-  promise.catch(() => {
-    if (dbPromise === promise) dbPromise = null;
+    request.onerror = () => {
+      forget();
+      reject(request.error);
+    };
   });
   return promise;
 }
@@ -89,14 +90,13 @@ function generateId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+// createdAt must be a finite numeric timestamp (ms since epoch); listEntries sorts on it.
 export async function addEntry({ amount, note, category, createdAt } = {}) {
-  const entry = {
-    id: generateId(),
-    amount,
-    note,
-    category,
-    createdAt: createdAt === undefined ? Date.now() : createdAt,
-  };
+  const timestamp = createdAt === undefined ? Date.now() : createdAt;
+  if (typeof timestamp !== 'number' || !Number.isFinite(timestamp)) {
+    throw new TypeError('createdAt must be a finite numeric timestamp');
+  }
+  const entry = { id: generateId(), amount, note, category, createdAt: timestamp };
   await withStore('readwrite', (store) => requestToPromise(store.add(entry)));
   return entry;
 }
