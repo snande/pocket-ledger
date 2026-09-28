@@ -5,6 +5,7 @@ import {
   submitQuickEntry,
   ERROR_MESSAGE,
   SAVE_ERROR_MESSAGE,
+  OPEN_ERROR_MESSAGE,
   LOAD_ERROR_MESSAGE,
 } from './app.js';
 import { addEntry, setEntries, setDeleteListener } from './ui.js';
@@ -40,6 +41,12 @@ form.addEventListener('submit', async (event) => {
 async function start() {
   try {
     await storage.openStore();
+  } catch (err) {
+    console.error('open failed', err);
+    errorEl.textContent = OPEN_ERROR_MESSAGE;
+    return;
+  }
+  try {
     await hydrate(store, setEntries);
   } catch (err) {
     console.error('load failed', err);

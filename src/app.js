@@ -5,10 +5,15 @@ export { computeTotals } from './totals.js';
 
 export const ERROR_MESSAGE = 'Use a format like 120 chai';
 export const SAVE_ERROR_MESSAGE = 'Could not save that entry';
+export const OPEN_ERROR_MESSAGE = 'Could not open saved entries';
 export const LOAD_ERROR_MESSAGE = 'Could not load saved entries';
 
 function toEpochMs(createdAt) {
-  return typeof createdAt === 'string' ? Date.parse(createdAt) : createdAt;
+  const t = typeof createdAt === 'string' ? Date.parse(createdAt) : createdAt;
+  if (typeof t !== 'number' || !Number.isFinite(t)) {
+    throw new TypeError('createdAt must be a valid timestamp');
+  }
+  return t;
 }
 
 function fromStored({ note, ...rest }) {
@@ -31,10 +36,7 @@ export function createStorageStore(storage) {
 
     async listEntries() {
       const entries = await storage.listEntries();
-      return entries
-        .map(fromStored)
-        .reverse()
-        .sort((a, b) => b.createdAt - a.createdAt);
+      return entries.map(fromStored).sort((a, b) => b.createdAt - a.createdAt);
     },
 
     async deleteEntry(id) {

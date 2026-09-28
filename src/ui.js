@@ -28,14 +28,6 @@ function isRenderable(entry) {
   );
 }
 
-function sameLocalDay(a, b) {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
-}
-
 function reportDeleteFailure(err) {
   console.error('delete failed', err);
   const errorEl = document.getElementById('entry-error');
@@ -56,7 +48,7 @@ function bindDelete(listEl) {
   });
 }
 
-// Totals cover every valid entry; rows (the #today-list) show only today's entries.
+// Totals and rows (the #today-list) both cover every valid entry, newest first.
 // Entries with a non-numeric amount or unparseable createdAt are skipped, with a warning.
 export function render(list) {
   const now = new Date();
@@ -80,10 +72,7 @@ export function render(list) {
   if (!listEl) return;
   bindDelete(listEl);
   // Newest first; reverse before the stable sort so ties list latest-added first.
-  const rows = valid
-    .filter(({ t }) => sameLocalDay(new Date(t), now))
-    .reverse()
-    .sort((a, b) => b.t - a.t);
+  const rows = valid.slice().reverse().sort((a, b) => b.t - a.t);
   // Full rebuild on every call is a deliberate simplicity tradeoff for a small daily list.
   listEl.replaceChildren(
     ...rows.map(({ entry }) => {

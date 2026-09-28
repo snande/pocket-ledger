@@ -32,7 +32,7 @@ test('entries added through the storage store are hydrated back, with totals', a
   assert.equal(first.label, 'chai');
   assert.equal(first.amount, 120);
 
-  // A fresh store over the same database stands in for reopening the page.
+  // Closing the connection and reading through a fresh store stands in for reopening the page.
   await storage.closeStore();
   const reopened = createStorageStore(storage);
   let shown = null;
@@ -46,11 +46,15 @@ test('entries added through the storage store are hydrated back, with totals', a
   assert.deepEqual(computeTotals(shown, now), { today: 120, month: 120 });
 });
 
-test('listEntries on the storage store is newest first', async () => {
+test('hydrate hands every stored entry to the renderer, newest first, across days', async () => {
   const store = createStorageStore(storage);
-  await store.addEntry({ amount: 1, label: 'a', category: 'Other', createdAt: 100 });
-  await store.addEntry({ amount: 2, label: 'b', category: 'Other', createdAt: 200 });
-  assert.deepEqual((await store.listEntries()).map((e) => e.label), ['b', 'a']);
+  await store.addEntry({ amount: 1, label: 'old', category: 'Other', createdAt: 100 });
+  await store.addEntry({ amount: 2, label: 'new', category: 'Other', createdAt: 200 });
+  let shown = null;
+  await hydrate(store, (entries) => {
+    shown = entries;
+  });
+  assert.deepEqual(shown.map((e) => e.label), ['new', 'old']);
 });
 
 test('a failed write rejects and stores nothing', async () => {
@@ -62,5 +66,14 @@ test('a failed write rejects and stores nothing', async () => {
     deleteEntry: storage.deleteEntry,
   });
   await assert.rejects(submitQuickEntry('120 chai', failing, new Date()), /disk full/);
+  assert.deepEqual(await storage.listEntries(), []);
+});
+
+test('an unparseable createdAt is rejected before anything is written', async () => {
+  const store = createStorageStore(storage);
+  await assert.rejects(
+    store.addEntry({ amount: 5, label: 'x', category: 'Other', createdAt: 'not a date' }),
+    TypeError,
+  );
   assert.deepEqual(await storage.listEntries(), []);
 });
