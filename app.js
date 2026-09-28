@@ -1,10 +1,11 @@
 function addEntry(list, text) {
-  return [text, ...list];
+  const trimmed = typeof text === 'string' ? text.trim() : '';
+  if (trimmed === '') return [...list];
+  return [trimmed, ...list];
 }
 
-if (typeof globalThis !== 'undefined') {
-  globalThis.addEntry = addEntry;
-}
+// globalThis (not window) so a Node ESM test can reach it; browsers already expose top-level functions as globals.
+globalThis.addEntry = addEntry;
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { addEntry };
 }
@@ -21,7 +22,7 @@ if (typeof document !== 'undefined') {
     if (text === '') return;
     entries = addEntry(entries, text);
     const li = document.createElement('li');
-    li.textContent = text;
+    li.textContent = entries[0];
     listEl.prepend(li);
     input.value = '';
     input.focus();

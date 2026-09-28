@@ -11,12 +11,24 @@ test('addEntry prepends text and returns a new array', () => {
   assert.deepEqual(addEntry(['a'], 'b'), ['b', 'a']);
 });
 
+test('addEntry trims the text before prepending', () => {
+  const { addEntry } = globalThis;
+  assert.deepEqual(addEntry([], '  120 chai  '), ['120 chai']);
+});
+
+test('addEntry ignores empty and whitespace-only text', () => {
+  const { addEntry } = globalThis;
+  assert.deepEqual(addEntry(['a'], ''), ['a']);
+  assert.deepEqual(addEntry(['a'], '   \t '), ['a']);
+});
+
 test('addEntry does not mutate its input', () => {
   const { addEntry } = globalThis;
   const list = ['a'];
   const next = addEntry(list, 'b');
   assert.deepEqual(list, ['a']);
   assert.notEqual(next, list);
+  assert.notEqual(addEntry(list, ''), list);
 });
 
 test('shell files reference no absolute http(s) URLs', () => {
