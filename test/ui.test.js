@@ -169,6 +169,10 @@ test('an entry from earlier this month counts toward the month only but still ge
   assert.equal(dom['total-today'].textContent, '₹5.00');
   assert.equal(dom['total-month'].textContent, '₹80.00');
   assert.deepEqual(dom['today-list'].deleteButtons().map((b) => b.getAttribute('data-id')), ['b', 'a']);
+  assert.deepEqual(
+    dom['today-list'].children.map((li) => li.textContent),
+    ['₹5 chai Food Delete', '₹75 chai Food Delete'],
+  );
 });
 
 test('entries from a previous month are listed but count toward neither total', () => {
@@ -178,6 +182,10 @@ test('entries from a previous month are listed but count toward neither total', 
   assert.equal(dom['total-today'].textContent, '₹5.00');
   assert.equal(dom['total-month'].textContent, '₹5.00');
   assert.deepEqual(dom['today-list'].deleteButtons().map((b) => b.getAttribute('data-id')), ['b', 'a']);
+  assert.deepEqual(
+    dom['today-list'].children.map((li) => li.textContent),
+    ['₹5 chai Food Delete', '₹75 chai Food Delete'],
+  );
 });
 
 test('entries with an unparseable createdAt or invalid amount are skipped with a warning', () => {

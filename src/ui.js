@@ -1,5 +1,5 @@
 import { computeTotals, formatRupees } from './totals.js';
-import { formatEntry } from './app.js';
+import { formatEntry } from './format.js';
 
 export const DELETE_ERROR_MESSAGE = 'Could not delete that entry';
 
@@ -48,7 +48,8 @@ function bindDelete(listEl) {
   });
 }
 
-// Totals and rows (the #today-list) both cover every valid entry, newest first.
+// Rows (the #today-list) list every valid entry, newest first. The totals come from
+// computeTotals, which counts only entries in the device's local day and month.
 // Entries with a non-numeric amount or unparseable createdAt are skipped, with a warning.
 export function render(list) {
   const now = new Date();
