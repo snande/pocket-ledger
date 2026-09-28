@@ -16,7 +16,8 @@ test('page files reference no absolute http(s) URLs', () => {
 test('index.html wires up stylesheet, module script, form, error and list', () => {
   const html = read('index.html');
   assert.match(html, /href="\.\/styles\.css"/);
-  assert.match(html, /<script[^>]*type="module"[^>]*src="\.\/src\/app\.js"/);
+  assert.match(html, /<script[^>]*type="module"[^>]*src="\.\/app\.js"/);
+  assert.equal(read('app.js').trim(), "import './src/app.js';");
   assert.match(html, /<form[^>]*id="quick-entry"/);
   assert.match(html, /<p[^>]*id="entry-error"/);
   assert.match(html, /<ul[^>]*id="today-list"/);

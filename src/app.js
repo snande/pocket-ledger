@@ -121,6 +121,18 @@ export function initApp(storageApi = storage, now = () => new Date()) {
   return ready;
 }
 
+// Resolves to the ServiceWorkerRegistration, or null when unsupported or failed.
+export async function registerServiceWorker(nav = globalThis.navigator) {
+  if (!nav || !('serviceWorker' in nav)) return null;
+  try {
+    return await nav.serviceWorker.register('./sw.js', { scope: './' });
+  } catch (err) {
+    console.error('service worker registration failed', err);
+    return null;
+  }
+}
+
 if (typeof document !== 'undefined' && document.getElementById('quick-entry')) {
   initApp();
+  registerServiceWorker();
 }
