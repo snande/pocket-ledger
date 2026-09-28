@@ -1,6 +1,7 @@
 import { test, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  createStorageStore,
   initApp,
   SAVE_ERROR_MESSAGE,
   OPEN_ERROR_MESSAGE,
@@ -108,6 +109,26 @@ test('a successful add is written through addEntry and then shown', async () => 
   assert.equal(dom['quick-entry'].input.value, '');
 });
 
+test('a submit made while startup is still loading waits for it and is not lost', async () => {
+  const rows = [];
+  let openStore;
+  const opened = new Promise((resolve) => { openStore = resolve; });
+  const storage = stubStorage(rows, { openStore: () => opened });
+  const started = initApp(storage);
+
+  dom['quick-entry'].input.value = '120 chai';
+  const submitted = dom['quick-entry'].fire('submit');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(rows.length, 0, 'nothing is written before startup finishes');
+  assert.deepEqual(rowTexts(), []);
+
+  openStore();
+  await started;
+  await submitted;
+  assert.equal(rows.length, 1);
+  assert.deepEqual(rowTexts(), ['₹120 chai Food Delete']);
+});
+
 test('a failed write shows an error and does not display the entry', async () => {
   const storage = stubStorage([], {
     addEntry: async () => {
@@ -140,4 +161,26 @@ test('startup failures show distinct open and load errors', async () => {
   dom['entry-error'].textContent = '';
   await initApp(stubStorage([], { listEntries: async () => { throw new Error('boom'); } }));
   assert.equal(dom['entry-error'].textContent, LOAD_ERROR_MESSAGE);
+});
+
+test('createStorageStore rejects an unusable createdAt before writing anything', async () => {
+  for (const createdAt of ['not a date', '', Number.NaN, null]) {
+    const rows = [];
+    const store = createStorageStore(stubStorage(rows));
+    await assert.rejects(
+      store.addEntry({ amount: 5, label: 'x', category: 'Other', createdAt }),
+      TypeError,
+      JSON.stringify(createdAt) ?? String(createdAt),
+    );
+    assert.equal(rows.length, 0);
+  }
+});
+
+test('createStorageStore converts an ISO createdAt to epoch milliseconds', async () => {
+  const rows = [];
+  const store = createStorageStore(stubStorage(rows));
+  const iso = '2026-09-28T10:00:00.000Z';
+  const saved = await store.addEntry({ amount: 5, label: 'x', category: 'Other', createdAt: iso });
+  assert.equal(rows[0].createdAt, Date.parse(iso));
+  assert.equal(saved.label, 'x');
 });

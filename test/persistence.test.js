@@ -69,11 +69,13 @@ test('a failed write rejects and stores nothing', async () => {
   assert.deepEqual(await storage.listEntries(), []);
 });
 
-test('an unparseable createdAt is rejected before anything is written', async () => {
+test('an unusable createdAt is rejected before anything reaches IndexedDB', async () => {
   const store = createStorageStore(storage);
-  await assert.rejects(
-    store.addEntry({ amount: 5, label: 'x', category: 'Other', createdAt: 'not a date' }),
-    TypeError,
-  );
+  for (const createdAt of ['not a date', '']) {
+    await assert.rejects(
+      store.addEntry({ amount: 5, label: 'x', category: 'Other', createdAt }),
+      TypeError,
+    );
+  }
   assert.deepEqual(await storage.listEntries(), []);
 });

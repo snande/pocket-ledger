@@ -94,6 +94,8 @@ export function initApp(storageApi = storage, now = () => new Date()) {
     }
   })();
 
+  // A submit that arrives during startup waits for hydration, so the loaded list
+  // cannot overwrite the new entry.
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     await ready;
