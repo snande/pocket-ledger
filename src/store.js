@@ -24,14 +24,8 @@ export function createMemoryStore() {
 
     async listEntriesForDay(date) {
       return entries
-        .map((entry, index) => ({ entry, index }))
-        .filter(({ entry }) => sameLocalDay(new Date(entry.createdAt), date))
-        .sort(
-          (a, b) =>
-            b.entry.createdAt.localeCompare(a.entry.createdAt) ||
-            b.index - a.index,
-        )
-        .map(({ entry }) => entry);
+        .filter((entry) => sameLocalDay(new Date(entry.createdAt), date))
+        .reverse();
     },
   };
 }

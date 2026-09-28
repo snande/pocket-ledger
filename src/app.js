@@ -9,7 +9,7 @@ export function formatEntry(entry) {
 export async function submitQuickEntry(text, store, now) {
   let parsed;
   try {
-    parsed = parseEntry(text, now);
+    parsed = parseEntry(text);
   } catch {
     return null;
   }
