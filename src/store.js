@@ -26,6 +26,20 @@ export function createMemoryStore() {
       return entry;
     },
 
+    async listEntries() {
+      return entries
+        .slice()
+        .reverse()
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    },
+
+    async deleteEntry(id) {
+      const index = entries.findIndex((entry) => entry.id === id);
+      if (index === -1) return false;
+      entries.splice(index, 1);
+      return true;
+    },
+
     async listEntriesForDay(date) {
       // Reverse first so the stable sort leaves same-timestamp entries latest-added first.
       return entries
