@@ -1,6 +1,6 @@
 import { createMemoryStore } from './store.js';
 import { submitQuickEntry, ERROR_MESSAGE } from './app.js';
-import { render, addEntry, entries, setDeleteListener } from './ui.js';
+import { addEntry, setEntries, setDeleteListener } from './ui.js';
 
 const store = createMemoryStore();
 const form = document.getElementById('quick-entry');
@@ -22,7 +22,4 @@ form.addEventListener('submit', async (event) => {
   input.focus();
 });
 
-store.listEntries().then((existing) => {
-  entries.push(...existing);
-  render(entries);
-});
+store.listEntries().then(setEntries);
