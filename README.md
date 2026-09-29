@@ -2,6 +2,10 @@
 
 Static app shell: `python3 -m http.server 8000`, then open http://localhost:8000/.
 
+## Hosting
+
+The app is deployed to GitHub Pages by `.github/workflows/pages.yml` on every push to `main` (and can be triggered manually via `workflow_dispatch`). It publishes the repository root as-is, with no build or install step. The public link has the form `https://<owner>.github.io/<repo>/`.
+
 ## Offline use
 
 `sw.js` precaches the app shell (`PRECACHE_URLS`) and serves it cache-first. It only runs over HTTPS or on `localhost`. After one online visit, open DevTools > Network > Offline and reload: the shell still renders. `index.html` loads the root `app.js`, which imports `src/app.js`. When you add, rename or remove a shell file, update `PRECACHE_URLS` (a missing file makes install fail) and bump `CACHE`.
