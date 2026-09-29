@@ -49,8 +49,11 @@ function bindDelete(listEl) {
   });
 }
 
-// rows are categoryBreakdown results. textContent (never innerHTML) keeps
-// note-derived names from being interpreted as markup.
+// rows are categoryBreakdown results, rendered as "<category> <formatAmount(total)>"
+// (the src/format.js formatter, e.g. "Food ₹150.5"). textContent (never innerHTML)
+// keeps note-derived names from being interpreted as markup. A missing container is
+// tolerated, like #today-list in render(), so a page without the section still renders;
+// test/ui.test.js pins the id in index.html.
 export function renderCategoryBreakdown(container, rows) {
   if (!container) return;
   if (rows.length === 0) {
@@ -90,7 +93,9 @@ export function render(list) {
   document.getElementById('total-today').textContent = formatRupees(totals.today);
   document.getElementById('total-month').textContent = formatRupees(totals.month);
 
-  // categoryBreakdown reads the note from `note`; UI entries carry it as `label`.
+  // categoryBreakdown derives the category from `note` via categorise(); UI entries
+  // carry that note as `label`, and submitQuickEntry stored category = categorise(label),
+  // so the grouping matches each entry's stored category.
   renderCategoryBreakdown(
     document.getElementById('category-breakdown'),
     categoryBreakdown(

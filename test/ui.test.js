@@ -286,29 +286,42 @@ test('index.html has the category-breakdown container and sw.js precaches its mo
 
 test('the breakdown shows an empty-state message when there are no current-month entries', () => {
   ui.render([]);
-  const rows = dom['category-breakdown'].children;
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0].textContent, ui.EMPTY_BREAKDOWN_MESSAGE);
+  assert.deepEqual(dom['category-breakdown'].children.map((li) => li.textContent), [ui.EMPTY_BREAKDOWN_MESSAGE]);
 
   const now = new Date();
   const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 15, 12).getTime();
   ui.render([entry('a', 75, lastMonth)]);
-  assert.equal(dom['category-breakdown'].children.length, 1);
-  assert.equal(dom['category-breakdown'].children[0].textContent, ui.EMPTY_BREAKDOWN_MESSAGE);
+  assert.deepEqual(dom['category-breakdown'].children.map((li) => li.textContent), [ui.EMPTY_BREAKDOWN_MESSAGE]);
 });
 
 test('addEntry refreshes the breakdown rows in the same update as the totals', () => {
   ui.addEntry({ id: 'a', amount: 120, label: 'chai', category: 'Food' });
   assert.equal(dom['total-month'].textContent, '₹120.00');
-  assert.equal(dom['category-breakdown'].children.length, 1);
-  const first = dom['category-breakdown'].children[0].textContent;
-  assert.match(first, /₹120$/);
+  assert.deepEqual(dom['category-breakdown'].children.map((li) => li.textContent), ['Food ₹120']);
 
   ui.addEntry({ id: 'b', amount: 30.5, label: 'chai', category: 'Food' });
   assert.equal(dom['total-month'].textContent, '₹150.50');
-  const rows = dom['category-breakdown'].children;
-  assert.equal(rows.length, 1);
-  assert.match(rows[0].textContent, /₹150\.5$/);
+  assert.deepEqual(dom['category-breakdown'].children.map((li) => li.textContent), ['Food ₹150.5']);
+});
+
+test('the breakdown groups by category, not label, and lists totals largest first', () => {
+  ui.setEntries([
+    { id: '1', amount: 100, label: 'chai', category: 'Food', createdAt: Date.now() },
+    { id: '2', amount: 50, label: 'lunch', category: 'Food', createdAt: Date.now() },
+    { id: '3', amount: 200, label: 'uber', category: 'Transport', createdAt: Date.now() },
+    { id: '4', amount: 20, label: 'gift', category: 'Other', createdAt: Date.now() },
+  ]);
+  assert.deepEqual(
+    dom['category-breakdown'].children.map((li) => li.textContent),
+    ['Transport ₹200', 'Food ₹150', 'Other ₹20'],
+  );
+  assert.equal(dom['total-month'].textContent, '₹370.00');
+
+  ui.deleteEntry('3');
+  assert.deepEqual(
+    dom['category-breakdown'].children.map((li) => li.textContent),
+    ['Food ₹150', 'Other ₹20'],
+  );
 });
 
 test('breakdown rows use textContent so markup in a label stays literal', () => {
@@ -316,5 +329,5 @@ test('breakdown rows use textContent so markup in a label stays literal', () => 
   const rows = dom['category-breakdown'].children;
   assert.equal(rows.length, 1);
   assert.equal(rows[0].children.length, 0);
-  assert.match(rows[0].textContent, /₹10$/);
+  assert.equal(rows[0].textContent, 'Other ₹10');
 });
