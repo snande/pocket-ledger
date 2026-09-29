@@ -17,7 +17,8 @@ const PRECACHE_URLS = [
   './src/totals.js',
   './src/format.js',
   // Raster app icons: added to PRECACHE_URLS so Android's installability
-  // check and offline installs both find them.
+  // check and offline installs both find them; apple-touch-icon.png is here
+  // too so iOS Safari's Home Screen add flow also works offline.
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/apple-touch-icon.png',
