@@ -1,4 +1,4 @@
-const CACHE = 'pocket-ledger-shell-v1';
+const CACHE = 'pocket-ledger-shell-v2';
 const CACHE_PREFIX = 'pocket-ledger-shell-';
 
 // The first five entries are the app shell; the ./src/ modules are what ./app.js
@@ -16,6 +16,8 @@ const PRECACHE_URLS = [
   './src/ui.js',
   './src/totals.js',
   './src/format.js',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
 ];
 
 self.addEventListener('install', (event) => {
