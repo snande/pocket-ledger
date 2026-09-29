@@ -60,7 +60,11 @@ def make_png(size, bg=BG, fg=FG):
 def main():
     out_dir = Path(__file__).resolve().parent.parent / 'icons'
     out_dir.mkdir(exist_ok=True)
-    for size, name in ((192, 'icon-192.png'), (512, 'icon-512.png')):
+    for size, name in (
+        (192, 'icon-192.png'),
+        (512, 'icon-512.png'),
+        (180, 'apple-touch-icon.png'),
+    ):
         data = make_png(size)
         path = out_dir / name
         path.write_bytes(data)

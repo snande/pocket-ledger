@@ -1,4 +1,4 @@
-const CACHE = 'pocket-ledger-shell-v2';
+const CACHE = 'pocket-ledger-shell-v3';
 const CACHE_PREFIX = 'pocket-ledger-shell-';
 
 // The first five entries are the app shell; the ./src/ modules are what ./app.js
@@ -20,6 +20,7 @@ const PRECACHE_URLS = [
   // check and offline installs both find them.
   './icons/icon-192.png',
   './icons/icon-512.png',
+  './icons/apple-touch-icon.png',
 ];
 
 self.addEventListener('install', (event) => {
