@@ -11,6 +11,14 @@ function toDate(now, fn) {
 
 const pad = (n, width = 2) => String(n).padStart(width, '0');
 
+/**
+ * Serialize entries to the backup JSON format that "Restore from backup"
+ * will parse; `app` and `version` are the contract it relies on.
+ *
+ * Every input entry is emitted in input order and is passed through
+ * untouched: `id`, `amount` (rupees), `note` and `createdAt` (epoch ms)
+ * keep their values, and any other fields an entry carries are kept too.
+ */
 export function serializeBackup(entries, now) {
   if (!Array.isArray(entries)) {
     throw new TypeError('serializeBackup: entries must be an array');

@@ -19,6 +19,16 @@ test('serializes the backup envelope with entries in order', () => {
   });
 });
 
+test('each entry keeps id, amount, note, createdAt and extra fields', () => {
+  const entry = { id: 'x', amount: 99.25, note: 'lunch', createdAt: 3000, tag: 'work' };
+  const [out] = JSON.parse(serializeBackup([entry], now)).entries;
+  assert.equal(out.id, 'x');
+  assert.equal(out.amount, 99.25);
+  assert.equal(out.note, 'lunch');
+  assert.equal(out.createdAt, 3000);
+  assert.equal(out.tag, 'work');
+});
+
 test('accepts a Date for now', () => {
   assert.equal(JSON.parse(serializeBackup([], now)).exportedAt, now.getTime());
 });
