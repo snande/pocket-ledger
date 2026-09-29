@@ -1,5 +1,6 @@
-// Bumped to v4 when src/backup.js was added to PRECACHE_URLS for the Backup button.
-const CACHE = 'pocket-ledger-shell-v4';
+// Bumped to v5 for the category breakdown (index.html, styles.css, src/ui.js changed;
+// no new shell file). v4 added src/backup.js to PRECACHE_URLS for the Backup button.
+const CACHE = 'pocket-ledger-shell-v5';
 const CACHE_PREFIX = 'pocket-ledger-shell-';
 
 // The first five entries are the app shell; the ./src/ modules are what ./app.js

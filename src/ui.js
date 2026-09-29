@@ -1,7 +1,8 @@
-import { computeTotals, formatRupees } from './totals.js';
-import { formatEntry } from './format.js';
+import { computeTotals, categoryBreakdown, formatRupees } from './totals.js';
+import { formatEntry, formatAmount } from './format.js';
 
 export const DELETE_ERROR_MESSAGE = 'Could not delete that entry';
+export const EMPTY_BREAKDOWN_MESSAGE = 'No entries this month';
 
 export const entries = [];
 
@@ -48,6 +49,26 @@ function bindDelete(listEl) {
   });
 }
 
+// rows are categoryBreakdown results. textContent (never innerHTML) keeps
+// note-derived names from being interpreted as markup.
+export function renderCategoryBreakdown(container, rows) {
+  if (!container) return;
+  if (rows.length === 0) {
+    const li = document.createElement('li');
+    li.setAttribute('data-empty', 'true');
+    li.textContent = EMPTY_BREAKDOWN_MESSAGE;
+    container.replaceChildren(li);
+    return;
+  }
+  container.replaceChildren(
+    ...rows.map(({ category, total }) => {
+      const li = document.createElement('li');
+      li.textContent = `${category} ${formatAmount(total)}`;
+      return li;
+    }),
+  );
+}
+
 // Rows (the #today-list) list every valid entry, newest first. The totals come from
 // computeTotals, which counts only entries in the device's local day and month.
 // Entries with a non-numeric amount or unparseable createdAt are skipped, with a warning.
@@ -68,6 +89,15 @@ export function render(list) {
   );
   document.getElementById('total-today').textContent = formatRupees(totals.today);
   document.getElementById('total-month').textContent = formatRupees(totals.month);
+
+  // categoryBreakdown reads the note from `note`; UI entries carry it as `label`.
+  renderCategoryBreakdown(
+    document.getElementById('category-breakdown'),
+    categoryBreakdown(
+      valid.map(({ entry, t }) => ({ amount: entry.amount, createdAt: t, note: entry.label })),
+      now,
+    ),
+  );
 
   const listEl = document.getElementById('today-list');
   if (!listEl) return;

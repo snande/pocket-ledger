@@ -43,7 +43,7 @@ const req = (url, init = {}) => ({ url, method: 'GET', mode: 'cors', ...init });
 
 test('cache name is versioned with the pocket-ledger-shell- prefix', () => {
   const { exports } = loadWorker();
-  assert.equal(exports.CACHE, 'pocket-ledger-shell-v4');
+  assert.equal(exports.CACHE, 'pocket-ledger-shell-v5');
 });
 
 test('PRECACHE_URLS includes all PNG icon paths', () => {
@@ -105,15 +105,15 @@ test('install precaches the list into CACHE and then skips waiting', async () =>
 
 test('activate deletes stale pocket-ledger-shell- caches, keeps the current one, then claims clients', async () => {
   const { listeners, calls, exports } = loadWorker({
-    cacheKeys: ['pocket-ledger-shell-v0', 'pocket-ledger-shell-v2', 'pocket-ledger-shell-v4', 'other-cache', 'pocket-ledger-shell-old'],
+    cacheKeys: ['pocket-ledger-shell-v0', 'pocket-ledger-shell-v2', 'pocket-ledger-shell-v4', 'pocket-ledger-shell-v5', 'other-cache', 'pocket-ledger-shell-old'],
   });
-  assert.equal(exports.CACHE, 'pocket-ledger-shell-v4');
+  assert.equal(exports.CACHE, 'pocket-ledger-shell-v5');
   await dispatch(listeners.activate, {});
   assert.deepEqual(
     [...calls.deleted].sort(),
-    ['pocket-ledger-shell-old', 'pocket-ledger-shell-v0', 'pocket-ledger-shell-v2'],
+    ['pocket-ledger-shell-old', 'pocket-ledger-shell-v0', 'pocket-ledger-shell-v2', 'pocket-ledger-shell-v4'],
   );
-  assert.ok(!calls.deleted.includes('pocket-ledger-shell-v4'));
+  assert.ok(!calls.deleted.includes('pocket-ledger-shell-v5'));
   assert.ok(!calls.deleted.includes('other-cache'));
   assert.equal(calls.claim, 1);
 });
