@@ -1,4 +1,4 @@
-// Bumped to v7 for the search box (src/search.js is new and imported by src/ui.js).
+// Bumped to v7: src/search.js is added to PRECACHE_URLS for the search box (imported by src/ui.js).
 // v6 was the monthly chart (src/monthly.js is new and imported by src/ui.js).
 // v5 was the category breakdown (no new shell file). v4 added src/backup.js to PRECACHE_URLS for the Backup button.
 const CACHE = 'pocket-ledger-shell-v7';
