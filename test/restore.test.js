@@ -1,10 +1,8 @@
-import 'fake-indexeddb/auto';
 import { test, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import * as storage from '../src/storage.js';
-import { initApp, restoreBackup } from '../src/app.js';
+import { initApp, RESTORE_ERROR_MESSAGE } from '../src/app.js';
 import { serializeBackup } from '../src/backup.js';
 import { computeTotals } from '../src/totals.js';
 
@@ -32,21 +30,36 @@ class Node {
   }
 }
 
+// In-memory stand-in for storage.js; `rows` plays the role of the persisted database.
+const stubStorage = (rows) => ({
+  rows,
+  openStore: async () => {},
+  listEntries: async () => rows.map((r) => ({ ...r })).sort((a, b) => a.createdAt - b.createdAt),
+  addEntry: async () => {},
+  deleteEntry: async () => {},
+  putEntries: async (entries) => {
+    for (const e of entries) {
+      const i = rows.findIndex((r) => r.id === e.id);
+      if (i === -1) rows.push({ ...e });
+      else rows[i] = { ...e };
+    }
+  },
+});
+
 const fileOf = (text) => ({ text: async () => text });
 const now = Date.now();
-const rows = [
+const backupRows = [
   { id: 'a', amount: 75, note: 'rent', category: 'Other', createdAt: now - 1000 },
   { id: 'b', amount: 120, note: 'chai', category: 'Food', createdAt: now },
 ];
 
 let dom;
 
-beforeEach(async () => {
-  await storage.openStore();
-  await storage.clearAll();
+beforeEach(() => {
   dom = {
     'quick-entry': new Node('form'),
     'entry-error': new Node('p'),
+    'restore-status': new Node('p'),
     'total-today': new Node('span'),
     'total-month': new Node('span'),
     'today-list': new Node('ul'),
@@ -76,40 +89,50 @@ const choose = async (text) => {
   await dom['restore-input'].fire('change');
 };
 
-test('index.html has a labelled .json file input for restoring', () => {
+test('index.html has a labelled .json file input and a status line for restoring', () => {
   const html = readFileSync(fileURLToPath(new URL('../index.html', import.meta.url)), 'utf8');
   assert.match(html, /<input[^>]*type="file"[^>]*id="restore-input"[^>]*accept="[^"]*\.json[^"]*"/);
   assert.match(html, /<label[^>]*for="restore-input"[^>]*>Restore backup<\/label>/);
+  assert.match(html, /<p id="restore-status" role="status"><\/p>/);
 });
 
 test('restoring into an empty ledger persists the entries and renders matching totals', async () => {
+  const storage = stubStorage([]);
   await initApp(storage);
-  await choose(serializeBackup(rows, now));
+  await choose(serializeBackup(backupRows, now));
 
-  assert.deepEqual(await storage.listEntries(), rows);
-  assert.equal(dom['entry-error'].textContent, 'Restored 2 entries');
-  const totals = computeTotals(rows, new Date());
+  assert.deepEqual(await storage.listEntries(), backupRows);
+  assert.equal(dom['restore-status'].textContent, 'Restored 2 entries');
+  assert.equal(dom['entry-error'].textContent, '');
+  const totals = computeTotals(backupRows, new Date());
   assert.ok(dom['total-today'].textContent.includes(String(totals.today)));
   assert.ok(dom['total-month'].textContent.includes(String(totals.month)));
-
-  // survives a reload
-  await storage.closeStore();
-  assert.deepEqual(await storage.listEntries(), rows);
+  assert.equal(dom['today-list'].children.length, 2);
 });
 
-test('restoring an overlapping backup adds only new entries', async () => {
-  await storage.putEntries([rows[0]]);
+test('an overlapping backup adds only unknown ids and existing entries win', async () => {
+  const stored = { ...backupRows[0], amount: 999 };
+  const storage = stubStorage([stored]);
   await initApp(storage);
-  await choose(serializeBackup(rows, now));
-  assert.equal(dom['entry-error'].textContent, 'Restored 1 entry');
-  assert.deepEqual(await storage.listEntries(), rows);
+  await choose(serializeBackup(backupRows, now));
+  assert.equal(dom['restore-status'].textContent, 'Restored 1 entry');
+  assert.deepEqual(await storage.listEntries(), [stored, backupRows[1]]);
 });
 
 test('an invalid file shows the parse error and leaves storage unchanged', async () => {
-  await storage.putEntries([rows[0]]);
+  const storage = stubStorage([backupRows[0]]);
   await initApp(storage);
   await choose('not json');
   assert.equal(dom['entry-error'].textContent, 'Backup is not valid JSON');
-  assert.deepEqual(await storage.listEntries(), [rows[0]]);
-  await assert.rejects(restoreBackup(fileOf('{}'), storage), /pocket-ledger/);
+  assert.equal(dom['restore-status'].textContent, '');
+  assert.deepEqual(await storage.listEntries(), [backupRows[0]]);
+});
+
+test('a storage failure shows the generic restore error, not the raw message', async () => {
+  const storage = stubStorage([]);
+  await initApp(storage);
+  storage.putEntries = async () => { throw new Error('IDB internal boom'); };
+  await choose(serializeBackup(backupRows, now));
+  assert.equal(dom['entry-error'].textContent, RESTORE_ERROR_MESSAGE);
+  assert.deepEqual(await storage.listEntries(), []);
 });

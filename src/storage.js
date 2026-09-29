@@ -110,7 +110,7 @@ export async function deleteEntry(id) {
   await withStore('readwrite', (store) => requestToPromise(store.delete(id)));
 }
 
-// Upserts every entry (by id) in a single transaction, so a bulk write is all-or-nothing.
+// Upserts every entry (by id) in one readwrite transaction, so a bulk write is all-or-nothing.
 export async function putEntries(entries) {
   await withStore('readwrite', async (store) => {
     await Promise.all(entries.map((entry) => requestToPromise(store.put(entry))));

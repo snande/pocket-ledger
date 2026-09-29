@@ -42,17 +42,6 @@ export async function downloadBackup(
   }
 }
 
-// Merges a chosen backup file into the persisted entries. Parsing and merging
-// happen before any write, so an invalid file leaves storage untouched.
-// Resolves to how many entries were added.
-export async function restoreBackup(file, storageApi) {
-  const { entries } = parseBackup(await file.text());
-  const existing = await storageApi.listEntries();
-  const merged = mergeEntries(existing, entries);
-  await storageApi.putEntries(merged);
-  return merged.length - existing.length;
-}
-
 export function restoreMessage(added) {
   return `Restored ${added} ${added === 1 ? 'entry' : 'entries'}`;
 }
@@ -91,6 +80,17 @@ export function createStorageStore(storageApi) {
     async deleteEntry(id) {
       await storageApi.deleteEntry(id);
       return true;
+    },
+
+    // Merges backup entries (storage shape) into the persisted ones via the same
+    // storage module the add/delete paths use. Existing ids win. Resolves to the
+    // number of entries that were not already stored.
+    async restoreEntries(incoming) {
+      const existing = await storageApi.listEntries();
+      const known = new Set(existing.map((e) => e.id));
+      const merged = mergeEntries(existing, incoming);
+      await storageApi.putEntries(merged);
+      return merged.filter((e) => !known.has(e.id)).length;
     },
   };
 }
@@ -180,17 +180,31 @@ export function initApp(storageApi = storage, now = () => new Date()) {
 
   const restoreInput = document.getElementById('restore-input');
   if (restoreInput) {
+    // Success goes to the polite status line; failures stay in the alert element.
+    const statusEl = document.getElementById('restore-status') || errorEl;
     restoreInput.addEventListener('change', async () => {
       const file = restoreInput.files && restoreInput.files[0];
       if (!file) return;
       try {
-        await ready;
-        const added = await restoreBackup(file, storageApi);
-        await hydrate(store, setEntries);
-        errorEl.textContent = restoreMessage(added);
-      } catch (err) {
-        console.error('restore failed', err);
-        errorEl.textContent = err instanceof Error && err.message ? err.message : RESTORE_ERROR_MESSAGE;
+        statusEl.textContent = '';
+        let incoming;
+        try {
+          incoming = parseBackup(await file.text()).entries;
+        } catch (err) {
+          // Only backup validation messages are user-facing; nothing was written.
+          errorEl.textContent = err instanceof Error && err.message ? err.message : RESTORE_ERROR_MESSAGE;
+          return;
+        }
+        try {
+          await ready;
+          const added = await store.restoreEntries(incoming);
+          await hydrate(store, setEntries);
+          errorEl.textContent = '';
+          statusEl.textContent = restoreMessage(added);
+        } catch (err) {
+          console.error('restore failed', err);
+          errorEl.textContent = RESTORE_ERROR_MESSAGE;
+        }
       } finally {
         restoreInput.value = '';
       }
