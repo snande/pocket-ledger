@@ -83,8 +83,9 @@ export function createStorageStore(storageApi) {
     },
 
     // Merges backup entries (storage shape) into the persisted ones via the same
-    // storage module the add/delete paths use. Existing ids win. Resolves to the
-    // number of entries that were not already stored.
+    // storage module the add/delete paths use. Existing ids win, and duplicate ids
+    // inside `incoming` collapse to the first one (mergeEntries keys by id).
+    // Resolves to the number of ids that were not already stored.
     async restoreEntries(incoming) {
       const existing = await storageApi.listEntries();
       const known = new Set(existing.map((e) => e.id));
@@ -182,11 +183,14 @@ export function initApp(storageApi = storage, now = () => new Date()) {
   if (restoreInput) {
     // Success goes to the polite status line; failures stay in the alert element.
     const statusEl = document.getElementById('restore-status') || errorEl;
-    restoreInput.addEventListener('change', async () => {
-      const file = restoreInput.files && restoreInput.files[0];
-      if (!file) return;
+    // Restores read then write storage, so they run one at a time: a second pick
+    // waits for the first instead of reading the same stale entry list.
+    let restoreQueue = Promise.resolve();
+
+    const runRestore = async (file) => {
+      restoreInput.disabled = true;
+      statusEl.textContent = '';
       try {
-        statusEl.textContent = '';
         let incoming;
         try {
           incoming = parseBackup(await file.text()).entries;
@@ -206,8 +210,16 @@ export function initApp(storageApi = storage, now = () => new Date()) {
           errorEl.textContent = RESTORE_ERROR_MESSAGE;
         }
       } finally {
+        restoreInput.disabled = false;
         restoreInput.value = '';
       }
+    };
+
+    restoreInput.addEventListener('change', () => {
+      const file = restoreInput.files && restoreInput.files[0];
+      if (!file) return undefined;
+      restoreQueue = restoreQueue.then(() => runRestore(file));
+      return restoreQueue;
     });
   }
 

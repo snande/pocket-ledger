@@ -31,10 +31,15 @@ class Node {
 }
 
 // In-memory stand-in for storage.js; `rows` plays the role of the persisted database.
-const stubStorage = (rows) => ({
+// `delay` makes reads yield so overlapping restores would interleave if not serialised.
+const stubStorage = (rows, delay = 0) => ({
   rows,
   openStore: async () => {},
-  listEntries: async () => rows.map((r) => ({ ...r })).sort((a, b) => a.createdAt - b.createdAt),
+  listEntries: async () => {
+    const snapshot = rows.map((r) => ({ ...r })).sort((a, b) => a.createdAt - b.createdAt);
+    if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+    return snapshot;
+  },
   addEntry: async () => {},
   deleteEntry: async () => {},
   putEntries: async (entries) => {
@@ -108,6 +113,7 @@ test('restoring into an empty ledger persists the entries and renders matching t
   assert.ok(dom['total-today'].textContent.includes(String(totals.today)));
   assert.ok(dom['total-month'].textContent.includes(String(totals.month)));
   assert.equal(dom['today-list'].children.length, 2);
+  assert.equal(dom['restore-input'].disabled, false);
 });
 
 test('an overlapping backup adds only unknown ids and existing entries win', async () => {
@@ -119,6 +125,31 @@ test('an overlapping backup adds only unknown ids and existing entries win', asy
   assert.deepEqual(await storage.listEntries(), [stored, backupRows[1]]);
 });
 
+test('duplicate ids inside one backup are stored and counted once', async () => {
+  const storage = stubStorage([]);
+  await initApp(storage);
+  const dup = [backupRows[0], { ...backupRows[0], amount: 1 }, backupRows[1]];
+  await choose(serializeBackup(dup, now));
+  assert.equal(dom['restore-status'].textContent, 'Restored 2 entries');
+  assert.deepEqual(await storage.listEntries(), backupRows);
+});
+
+test('two restores started back to back run one after the other', async () => {
+  const storage = stubStorage([], 5);
+  await initApp(storage);
+  const text = serializeBackup(backupRows, now);
+  const input = dom['restore-input'];
+  input.files = [fileOf(text)];
+  const first = input.fire('change');
+  input.files = [fileOf(text)];
+  const second = input.fire('change');
+  await Promise.all([first, second]);
+  // The second restore saw the first one's entries, so it added nothing.
+  assert.equal(dom['restore-status'].textContent, 'Restored 0 entries');
+  assert.deepEqual(await storage.listEntries(), backupRows);
+  assert.equal(input.disabled, false);
+});
+
 test('an invalid file shows the parse error and leaves storage unchanged', async () => {
   const storage = stubStorage([backupRows[0]]);
   await initApp(storage);
@@ -126,6 +157,16 @@ test('an invalid file shows the parse error and leaves storage unchanged', async
   assert.equal(dom['entry-error'].textContent, 'Backup is not valid JSON');
   assert.equal(dom['restore-status'].textContent, '');
   assert.deepEqual(await storage.listEntries(), [backupRows[0]]);
+});
+
+test('a failed restore clears the previous success message', async () => {
+  const storage = stubStorage([]);
+  await initApp(storage);
+  await choose(serializeBackup(backupRows, now));
+  assert.equal(dom['restore-status'].textContent, 'Restored 2 entries');
+  await choose('not json');
+  assert.equal(dom['restore-status'].textContent, '');
+  assert.equal(dom['entry-error'].textContent, 'Backup is not valid JSON');
 });
 
 test('a storage failure shows the generic restore error, not the raw message', async () => {
