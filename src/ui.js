@@ -1,6 +1,7 @@
 import { computeTotals, categoryBreakdown, formatRupees } from './totals.js';
 import { formatEntry, formatAmount } from './format.js';
 import { monthlyComparison } from './monthly.js';
+import { CATEGORY_KEYWORDS } from './categorise.js';
 
 export const DELETE_ERROR_MESSAGE = 'Could not delete that entry';
 export const EMPTY_BREAKDOWN_MESSAGE = 'No entries this month';
@@ -78,6 +79,14 @@ export function renderCategoryBreakdown(container, rows) {
 const SVG_NS = 'http:' + '//www.w3.org/2000/svg';
 const CHART_PALETTE = ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f', '#edc948', '#b07aa1', '#ff9da7'];
 const CHART_SIZE = 100;
+// Colours are keyed by category name (known categories first, then "Other"), so a
+// category keeps its colour when the month-to-month ordering changes.
+const KNOWN_CATEGORIES = [...Object.keys(CATEGORY_KEYWORDS), 'Other'];
+
+function categoryColor(category, fallbackIndex) {
+  const known = KNOWN_CATEGORIES.indexOf(category);
+  return CHART_PALETTE[(known === -1 ? KNOWN_CATEGORIES.length + fallbackIndex : known) % CHART_PALETTE.length];
+}
 
 function svgEl(tag, attrs) {
   const node = document.createElementNS(SVG_NS, tag);
@@ -85,16 +94,21 @@ function svgEl(tag, attrs) {
   return node;
 }
 
+// "new" when last month had nothing; otherwise a signed rupee amount via formatAmount
+// (src/format.js). An unchanged total has no direction, so it reads "±₹0".
 function formatChange({ total, previousTotal }) {
   if (previousTotal === 0) return 'new';
   const change = Math.round((total - previousTotal) * 100) / 100;
+  if (change === 0) return `±${formatAmount(0)}`;
   return `${change < 0 ? '−' : '+'}${formatAmount(Math.abs(change))}`;
 }
 
 // comparison is a monthlyComparison result. The pie has one slice per category with a
-// current-month total > 0; the legend lists every category with this month's amount and
-// the change vs last month ("new" when last month was 0). Everything is built with DOM
-// nodes and textContent, so category names are never interpreted as markup.
+// current-month total > 0, sized against the sum of those positive totals; a category
+// with a zero or negative total (e.g. a refund) gets no slice but keeps its legend row
+// with its true amount. The legend lists every category with this month's amount and
+// the change vs last month. Everything is built with DOM nodes and textContent, so
+// category names are never interpreted as markup.
 export function renderMonthChart(el, comparison) {
   if (!el) return;
   const categories = comparison.categories;
@@ -111,7 +125,7 @@ export function renderMonthChart(el, comparison) {
     'aria-label': 'This month by category',
   });
   const slices = categories
-    .map((c, i) => ({ c, fill: CHART_PALETTE[i % CHART_PALETTE.length] }))
+    .map((c, i) => ({ c, fill: categoryColor(c.category, i) }))
     .filter(({ c }) => c.total > 0);
   if (slices.length === 1) {
     svg.appendChild(svgEl('circle', { cx: half, cy: half, r: half, fill: slices[0].fill, 'data-category': slices[0].c.category }));
@@ -133,7 +147,7 @@ export function renderMonthChart(el, comparison) {
     const li = document.createElement('li');
     const swatch = document.createElement('span');
     swatch.setAttribute('class', 'swatch');
-    swatch.setAttribute('style', `background:${CHART_PALETTE[i % CHART_PALETTE.length]}`);
+    swatch.setAttribute('style', `background:${categoryColor(c.category, i)}`);
     const change = document.createElement('span');
     change.setAttribute('class', 'change');
     change.textContent = formatChange(c);
@@ -177,6 +191,8 @@ export function render(list) {
     ),
   );
 
+  // monthlyComparison derives the category from `note` via categorise(), the same as
+  // categoryBreakdown above, so the label is passed as the note.
   renderMonthChart(
     document.getElementById('month-chart'),
     monthlyComparison(
