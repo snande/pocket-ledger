@@ -49,6 +49,8 @@ beforeEach(() => {
     'total-today': new Node('span'),
     'total-month': new Node('span'),
     'today-list': new Node('ul'),
+    'search-input': new Node('input'),
+    'search-results': new Node('ul'),
   };
   dom['quick-entry'].input = new Node('input');
   globalThis.document = {
@@ -183,4 +185,19 @@ test('createStorageStore converts an ISO createdAt to epoch milliseconds', async
   const saved = await store.addEntry({ amount: 5, label: 'x', category: 'Other', createdAt: iso });
   assert.equal(rows[0].createdAt, Date.parse(iso));
   assert.equal(saved.label, 'x');
+});
+
+test('typing into the search box lists matching stored entries', async () => {
+  const now = Date.now();
+  const rows = [
+    { id: '1', amount: 75, note: 'rent', category: 'Other', createdAt: now },
+    { id: '2', amount: 120, note: 'chai', category: 'Food', createdAt: now },
+  ];
+  await initApp(stubStorage(rows));
+  assert.equal(dom['search-results'].children.length, 0);
+  dom['search-input'].value = 'chai';
+  await dom['search-input'].fire('input');
+  const texts = dom['search-results'].children.map((li) => li.textContent);
+  assert.equal(texts.length, 1);
+  assert.match(texts[0], /^chai \d{1,2} \w+ \d{4} ₹120$/);
 });

@@ -163,7 +163,7 @@ export function renderMonthChart(el, comparison) {
 }
 
 // results are searchEntries results (storage shape: note, createdAt, amount). textContent
-// only, so notes are never interpreted as markup.
+// only, so notes are never interpreted as markup. An empty date is left out of the row.
 export function renderSearchResults(container, results) {
   if (!container) return;
   if (results.length === 0) {
@@ -176,7 +176,7 @@ export function renderSearchResults(container, results) {
   container.replaceChildren(
     ...results.map((r) => {
       const li = document.createElement('li');
-      li.textContent = `${r.note} ${formatDate(r.createdAt)} ${formatAmount(r.amount)}`;
+      li.textContent = [r.note, formatDate(r.createdAt), formatAmount(r.amount)].filter((part) => part !== '').join(' ');
       return li;
     }),
   );
