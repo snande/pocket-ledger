@@ -1,4 +1,5 @@
-const CACHE = 'pocket-ledger-shell-v3';
+// Bumped to v4 when src/backup.js was added to PRECACHE_URLS for the Backup button.
+const CACHE = 'pocket-ledger-shell-v4';
 const CACHE_PREFIX = 'pocket-ledger-shell-';
 
 // The first five entries are the app shell; the ./src/ modules are what ./app.js
@@ -16,6 +17,7 @@ const PRECACHE_URLS = [
   './src/ui.js',
   './src/totals.js',
   './src/format.js',
+  './src/backup.js', // imported by ./src/app.js for the Backup button
   // Raster app icons: added to PRECACHE_URLS so Android's installability
   // check and offline installs both find them; apple-touch-icon.png is here
   // too so iOS Safari's Home Screen add flow also works offline.
