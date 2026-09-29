@@ -21,6 +21,12 @@ h1 {
   margin: 0 0 1rem;
 }
 
+#privacy-notice {
+  font-size: 0.85rem;
+  color: #555;
+  margin: 0 0 1rem;
+}
+
 form {
   display: flex;
   flex-direction: column;
