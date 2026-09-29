@@ -1,7 +1,7 @@
 import { parseEntry } from './parse.js';
 import { categorise } from './categorise.js';
 import * as storage from './storage.js';
-import { addEntry, setEntries, setDeleteListener } from './ui.js';
+import { addEntry, setEntries, setDeleteListener, refreshSearch } from './ui.js';
 import { serializeBackup, backupFilename, parseBackup, mergeEntries } from './backup.js';
 
 export { computeTotals } from './totals.js';
@@ -164,6 +164,9 @@ export function initApp(storageApi = storage, now = () => new Date()) {
     }
     input.focus();
   });
+
+  const searchInput = document.getElementById('search-input');
+  if (searchInput) searchInput.addEventListener('input', refreshSearch);
 
   const backupButton = document.getElementById('backup-button');
   if (backupButton) {

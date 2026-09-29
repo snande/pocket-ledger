@@ -82,7 +82,10 @@ function installDom() {
     'entry-error': new FakeNode('p'),
     'category-breakdown': new FakeNode('ul'),
     'month-chart': new FakeNode('div'),
+    'search-input': new FakeNode('input'),
+    'search-results': new FakeNode('ul'),
   };
+  byId['search-input'].value = '';
   byId['total-today'].textContent = '₹0.00';
   byId['total-month'].textContent = '₹0.00';
   globalThis.document = {
@@ -440,4 +443,68 @@ test('entries in two categories go through addEntry into two slices and two lege
   assert.deepEqual(slices.map((s) => s.getAttribute('data-category')), ['Food', 'Transport']);
   assert.match(slices[0].getAttribute('d'), /A 50 50 0 1 1 /);
   assert.deepEqual(chart.children[1].children.map((li) => li.textContent), ['Food ₹300 new', 'Transport ₹100 new']);
+});
+
+test('index.html has the search input and results container', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(html, /<input[^>]*id="search-input"/);
+  assert.match(html, /<ul[^>]*id="search-results"/);
+});
+
+const searchRows = () => dom['search-results'].children.map((li) => li.textContent);
+const search = (query) => {
+  dom['search-input'].value = query;
+  ui.refreshSearch();
+};
+
+test('search lists every match (not the non-matching entry between them) newest first with exact date and amount', () => {
+  const noon = (d) => new Date(2026, 2, d, 12).getTime();
+  ui.addEntry({ id: 'a', amount: 20, label: 'masala chai', category: 'Food', createdAt: noon(12) });
+  ui.addEntry({ id: 'b', amount: 500, label: 'petrol', category: 'Transport', createdAt: noon(13) });
+  ui.addEntry({ id: 'c', amount: 1500, label: 'Chai', category: 'Food', createdAt: new Date(2026, 2, 14, 12).toISOString() });
+  search('CHAI');
+  assert.deepEqual(searchRows(), ['Chai 14 Mar 2026 ₹1,500', 'masala chai 12 Mar 2026 ₹20']);
+});
+
+test('search shows the no-matches message when nothing matches', () => {
+  ui.addEntry(entry('a', 30));
+  search('petrol');
+  assert.deepEqual(searchRows(), [ui.NO_MATCHES_MESSAGE]);
+});
+
+test('search results refresh when an entry is added after the query was typed', () => {
+  search('chai');
+  assert.deepEqual(searchRows(), [ui.NO_MATCHES_MESSAGE]);
+  ui.addEntry(entry('a', 30, new Date(2026, 0, 5, 12).getTime()));
+  assert.deepEqual(searchRows(), ['chai 5 Jan 2026 ₹30']);
+});
+
+test('search results follow setEntries and deleteEntry', () => {
+  search('chai');
+  ui.setEntries([entry('a', 30, new Date(2026, 0, 5, 12).getTime())]);
+  assert.equal(searchRows().length, 1);
+  ui.deleteEntry('a');
+  assert.deepEqual(searchRows(), [ui.NO_MATCHES_MESSAGE]);
+});
+
+test('clearing the query empties results that were showing', () => {
+  ui.addEntry(entry('a', 30));
+  search('chai');
+  assert.equal(searchRows().length, 1);
+  search('');
+  assert.equal(dom['search-results'].children.length, 0);
+  search('  ');
+  assert.equal(dom['search-results'].children.length, 0);
+});
+
+test('an entry with an unparseable createdAt is skipped by search, not listed', () => {
+  ui.addEntry(entry('a', 30));
+  ui.entries.push({ id: 'z', amount: 5, label: 'chai', category: 'Food', createdAt: 'nope' });
+  search('chai');
+  assert.equal(searchRows().length, 1);
+});
+
+test('renderSearchResults omits an empty date instead of leaving a double space', () => {
+  ui.renderSearchResults(dom['search-results'], [{ note: 'chai', createdAt: 'bad', amount: 20 }]);
+  assert.deepEqual(searchRows(), ['chai ₹20']);
 });

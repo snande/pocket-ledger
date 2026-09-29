@@ -1,6 +1,7 @@
-// Bumped to v6 for the monthly chart (src/monthly.js is new and imported by src/ui.js).
+// Bumped to v7: src/search.js is added to PRECACHE_URLS for the search box (imported by src/ui.js).
+// v6 was the monthly chart (src/monthly.js is new and imported by src/ui.js).
 // v5 was the category breakdown (no new shell file). v4 added src/backup.js to PRECACHE_URLS for the Backup button.
-const CACHE = 'pocket-ledger-shell-v6';
+const CACHE = 'pocket-ledger-shell-v7';
 const CACHE_PREFIX = 'pocket-ledger-shell-';
 
 // The first five entries are the app shell; the ./src/ modules are what ./app.js
@@ -19,6 +20,7 @@ const PRECACHE_URLS = [
   './src/totals.js',
   './src/format.js',
   './src/monthly.js', // imported by ./src/ui.js for the monthly chart
+  './src/search.js', // imported by ./src/ui.js for the search box
   './src/backup.js', // imported by ./src/app.js for Backup and Restore (already listed, so CACHE is unchanged)
   // Raster app icons: added to PRECACHE_URLS so Android's installability
   // check and offline installs both find them; apple-touch-icon.png is here
