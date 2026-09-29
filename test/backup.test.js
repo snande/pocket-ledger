@@ -63,13 +63,17 @@ test('parseBackup round-trips entries with extra fields', () => {
 
 test('parseBackup rejects bad input with an Error', () => {
   const good = { id: 'a', amount: 1, note: '', createdAt: 1 };
-  const env = (o) => JSON.stringify({ app: 'pocket-ledger', version: 1, entries: [good], ...o });
+  const env = (o) =>
+    JSON.stringify({ app: 'pocket-ledger', version: 1, exportedAt: 5, entries: [good], ...o });
   const bad = [
     'not json',
     'null',
     env({ app: 'other' }),
     env({ version: 2 }),
     env({ version: undefined }),
+    env({ exportedAt: undefined }),
+    env({ exportedAt: '5' }),
+    env({ exportedAt: null }),
     env({ entries: {} }),
     env({ entries: [good, { ...good, id: 5 }] }),
     env({ entries: [{ amount: 1, createdAt: 1 }] }),
@@ -81,6 +85,12 @@ test('parseBackup rejects bad input with an Error', () => {
   ];
   for (const text of bad) {
     assert.throws(() => parseBackup(text), (e) => e instanceof Error && e.message.length > 0, text);
+  }
+});
+
+test('parseBackup rejects non-string input with a clear message', () => {
+  for (const input of [undefined, null, 42, {}]) {
+    assert.throws(() => parseBackup(input), /as text/);
   }
 });
 
@@ -98,6 +108,24 @@ test('mergeEntries unions by id, existing wins, sorted, idempotent', () => {
   assert.equal(once.find((e) => e.id === 'b').note, 'keep');
   assert.deepEqual(mergeEntries(once, incoming), once);
   assert.equal(existing.length, 2);
+});
+
+test('mergeEntries collapses duplicate ids within one array, first wins', () => {
+  const merged = mergeEntries(
+    [{ id: 'a', amount: 1, note: 'first', createdAt: 1 }, { id: 'a', amount: 2, note: 'second', createdAt: 2 }],
+    [],
+  );
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].note, 'first');
+});
+
+test('mergeEntries rejects malformed entries and non-arrays with TypeError', () => {
+  const ok = { id: 'a', amount: 1, note: '', createdAt: 1 };
+  assert.throws(() => mergeEntries(null, []), TypeError);
+  assert.throws(() => mergeEntries([], undefined), TypeError);
+  assert.throws(() => mergeEntries([null], []), TypeError);
+  assert.throws(() => mergeEntries([ok], [{ ...ok, id: 3 }]), TypeError);
+  assert.throws(() => mergeEntries([ok], [{ ...ok, id: 'z', createdAt: NaN }]), TypeError);
 });
 
 test('importing under Node works without window or localStorage', () => {

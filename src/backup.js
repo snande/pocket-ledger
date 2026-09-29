@@ -44,6 +44,9 @@ const isFiniteNumber = (v) => typeof v === 'number' && Number.isFinite(v);
  * never returned. Entries are passed through verbatim.
  */
 export function parseBackup(text) {
+  if (typeof text !== 'string') {
+    throw new Error('Backup must be provided as text');
+  }
   let data;
   try {
     data = JSON.parse(text);
@@ -58,6 +61,9 @@ export function parseBackup(text) {
   }
   if (data.version !== 1) {
     throw new Error(`Unsupported backup version: ${String(data.version)}`);
+  }
+  if (!isFiniteNumber(data.exportedAt)) {
+    throw new Error('Backup exportedAt must be a finite number');
   }
   if (!Array.isArray(data.entries)) {
     throw new Error('Backup entries must be an array');
@@ -85,18 +91,21 @@ export function parseBackup(text) {
 }
 
 /**
- * Union of `existing` and `incoming` keyed by `id`; on a collision the
- * existing entry wins. Sorted by `createdAt` ascending. Inputs are not mutated.
+ * Union of `existing` and `incoming` keyed by `id`; the first entry seen for
+ * an id wins, so existing beats incoming (and, within one array, the earlier
+ * entry beats a later duplicate). Sorted by `createdAt` ascending. Inputs are
+ * not mutated. Every entry needs a string `id` and a finite `createdAt`;
+ * otherwise a TypeError is thrown.
  */
 export function mergeEntries(existing, incoming) {
   if (!Array.isArray(existing) || !Array.isArray(incoming)) {
     throw new TypeError('mergeEntries: existing and incoming must be arrays');
   }
   const byId = new Map();
-  for (const entry of existing) {
-    if (!byId.has(entry.id)) byId.set(entry.id, entry);
-  }
-  for (const entry of incoming) {
+  for (const entry of [...existing, ...incoming]) {
+    if (!isObject(entry) || typeof entry.id !== 'string' || !isFiniteNumber(entry.createdAt)) {
+      throw new TypeError('mergeEntries: every entry needs a string id and a finite createdAt');
+    }
     if (!byId.has(entry.id)) byId.set(entry.id, entry);
   }
   return [...byId.values()].sort((a, b) => a.createdAt - b.createdAt);
