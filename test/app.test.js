@@ -39,8 +39,10 @@ test('quick-entry form directly contains exactly one text input', () => {
   const inputs = form[1].match(/<input\b[^>]*>/g) ?? [];
   assert.equal(inputs.length, 1);
   assert.match(inputs[0], /type="text"/);
-  // no other input anywhere on the page: the form's input is the single one
-  assert.equal((html.match(/<input\b/g) ?? []).length, 1);
+  // the only other input on the page is the Restore backup file picker
+  const pageInputs = html.match(/<input\b[^>]*>/g) ?? [];
+  assert.equal(pageInputs.filter((i) => !/type="file"/.test(i)).length, 1);
+  assert.equal(pageInputs.filter((i) => /type="file"/.test(i)).length, 1);
 });
 
 test('#entry-error and #today-list sit outside the form', () => {

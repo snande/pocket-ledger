@@ -17,7 +17,7 @@ const PRECACHE_URLS = [
   './src/ui.js',
   './src/totals.js',
   './src/format.js',
-  './src/backup.js', // imported by ./src/app.js for the Backup button
+  './src/backup.js', // imported by ./src/app.js for Backup and Restore (already listed, so CACHE is unchanged)
   // Raster app icons: added to PRECACHE_URLS so Android's installability
   // check and offline installs both find them; apple-touch-icon.png is here
   // too so iOS Safari's Home Screen add flow also works offline.

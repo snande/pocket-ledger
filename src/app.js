@@ -2,7 +2,7 @@ import { parseEntry } from './parse.js';
 import { categorise } from './categorise.js';
 import * as storage from './storage.js';
 import { addEntry, setEntries, setDeleteListener } from './ui.js';
-import { serializeBackup, backupFilename } from './backup.js';
+import { serializeBackup, backupFilename, parseBackup, mergeEntries } from './backup.js';
 
 export { computeTotals } from './totals.js';
 export { formatAmount, formatEntry } from './format.js';
@@ -12,6 +12,7 @@ export const SAVE_ERROR_MESSAGE = 'Could not save that entry';
 export const OPEN_ERROR_MESSAGE = 'Could not open saved entries';
 export const LOAD_ERROR_MESSAGE = 'Could not load saved entries';
 export const BACKUP_ERROR_MESSAGE = 'Could not create a backup';
+export const RESTORE_ERROR_MESSAGE = 'Could not restore that backup';
 
 // Downloads every persisted entry (read straight from storage, so no search or
 // month filter applies) as a backup JSON file via a temporary <a download>.
@@ -39,6 +40,10 @@ export async function downloadBackup(
     if (a) a.remove();
     schedule(() => urlApi.revokeObjectURL(url), 0);
   }
+}
+
+export function restoreMessage(added) {
+  return `Restored ${added} ${added === 1 ? 'entry' : 'entries'}`;
 }
 
 function toEpochMs(createdAt) {
@@ -75,6 +80,18 @@ export function createStorageStore(storageApi) {
     async deleteEntry(id) {
       await storageApi.deleteEntry(id);
       return true;
+    },
+
+    // Merges backup entries (storage shape) into the persisted ones via the same
+    // storage module the add/delete paths use. Existing ids win, and duplicate ids
+    // inside `incoming` collapse to the first one (mergeEntries keys by id).
+    // Resolves to the number of ids that were not already stored.
+    async restoreEntries(incoming) {
+      const existing = await storageApi.listEntries();
+      const known = new Set(existing.map((e) => e.id));
+      const merged = mergeEntries(existing, incoming);
+      await storageApi.putEntries(merged);
+      return merged.filter((e) => !known.has(e.id)).length;
     },
   };
 }
@@ -159,6 +176,50 @@ export function initApp(storageApi = storage, now = () => new Date()) {
         console.error('backup failed', err);
         errorEl.textContent = BACKUP_ERROR_MESSAGE;
       }
+    });
+  }
+
+  const restoreInput = document.getElementById('restore-input');
+  if (restoreInput) {
+    // Success goes to the polite status line; failures stay in the alert element.
+    const statusEl = document.getElementById('restore-status') || errorEl;
+    // Restores read then write storage, so they run one at a time: a second pick
+    // waits for the first instead of reading the same stale entry list.
+    let restoreQueue = Promise.resolve();
+
+    const runRestore = async (file) => {
+      restoreInput.disabled = true;
+      statusEl.textContent = '';
+      try {
+        let incoming;
+        try {
+          incoming = parseBackup(await file.text()).entries;
+        } catch (err) {
+          // Only backup validation messages are user-facing; nothing was written.
+          errorEl.textContent = err instanceof Error && err.message ? err.message : RESTORE_ERROR_MESSAGE;
+          return;
+        }
+        try {
+          await ready;
+          const added = await store.restoreEntries(incoming);
+          await hydrate(store, setEntries);
+          errorEl.textContent = '';
+          statusEl.textContent = restoreMessage(added);
+        } catch (err) {
+          console.error('restore failed', err);
+          errorEl.textContent = RESTORE_ERROR_MESSAGE;
+        }
+      } finally {
+        restoreInput.disabled = false;
+        restoreInput.value = '';
+      }
+    };
+
+    restoreInput.addEventListener('change', () => {
+      const file = restoreInput.files && restoreInput.files[0];
+      if (!file) return undefined;
+      restoreQueue = restoreQueue.then(() => runRestore(file));
+      return restoreQueue;
     });
   }
 
