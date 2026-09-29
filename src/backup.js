@@ -34,6 +34,74 @@ export function serializeBackup(entries, now) {
   );
 }
 
+const isObject = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
+const isFiniteNumber = (v) => typeof v === 'number' && Number.isFinite(v);
+
+/**
+ * Parse and validate backup text produced by `serializeBackup`.
+ *
+ * Throws an Error with a readable message on any problem; partial data is
+ * never returned. Entries are passed through verbatim.
+ */
+export function parseBackup(text) {
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error('Backup is not valid JSON');
+  }
+  if (!isObject(data)) {
+    throw new Error('Backup must be a JSON object');
+  }
+  if (data.app !== 'pocket-ledger') {
+    throw new Error('Backup is not a pocket-ledger backup');
+  }
+  if (data.version !== 1) {
+    throw new Error(`Unsupported backup version: ${String(data.version)}`);
+  }
+  if (!Array.isArray(data.entries)) {
+    throw new Error('Backup entries must be an array');
+  }
+  data.entries.forEach((entry, i) => {
+    if (!isObject(entry)) {
+      throw new Error(`Backup entry ${i} is not an object`);
+    }
+    if (typeof entry.id !== 'string') {
+      throw new Error(`Backup entry ${i} is missing a string id`);
+    }
+    if (!isFiniteNumber(entry.amount)) {
+      throw new Error(`Backup entry ${i} is missing a finite numeric amount`);
+    }
+    if (!isFiniteNumber(entry.createdAt)) {
+      throw new Error(`Backup entry ${i} is missing a finite numeric createdAt`);
+    }
+  });
+  return {
+    app: data.app,
+    version: data.version,
+    exportedAt: data.exportedAt,
+    entries: data.entries,
+  };
+}
+
+/**
+ * Union of `existing` and `incoming` keyed by `id`; on a collision the
+ * existing entry wins. Sorted by `createdAt` ascending. Inputs are not mutated.
+ */
+export function mergeEntries(existing, incoming) {
+  if (!Array.isArray(existing) || !Array.isArray(incoming)) {
+    throw new TypeError('mergeEntries: existing and incoming must be arrays');
+  }
+  const byId = new Map();
+  for (const entry of existing) {
+    if (!byId.has(entry.id)) byId.set(entry.id, entry);
+  }
+  for (const entry of incoming) {
+    if (!byId.has(entry.id)) byId.set(entry.id, entry);
+  }
+  return [...byId.values()].sort((a, b) => a.createdAt - b.createdAt);
+}
+
 /**
  * Download filename `pocket-ledger-backup-YYYY-MM-DD.json`, built from the
  * local date of `now` (getFullYear / getMonth / getDate), zero-padded.
