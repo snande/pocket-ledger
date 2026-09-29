@@ -2,6 +2,7 @@ import { parseEntry } from './parse.js';
 import { categorise } from './categorise.js';
 import * as storage from './storage.js';
 import { addEntry, setEntries, setDeleteListener } from './ui.js';
+import { serializeBackup, backupFilename } from './backup.js';
 
 export { computeTotals } from './totals.js';
 export { formatAmount, formatEntry } from './format.js';
@@ -10,6 +11,31 @@ export const ERROR_MESSAGE = 'Use a format like 120 chai';
 export const SAVE_ERROR_MESSAGE = 'Could not save that entry';
 export const OPEN_ERROR_MESSAGE = 'Could not open saved entries';
 export const LOAD_ERROR_MESSAGE = 'Could not load saved entries';
+export const BACKUP_ERROR_MESSAGE = 'Could not create a backup';
+
+// Downloads every persisted entry (read straight from storage, so no search or
+// month filter applies) as a backup JSON file via a temporary <a download>.
+export async function downloadBackup(
+  storageApi,
+  now = () => Date.now(),
+  doc = document,
+  urlApi = URL,
+) {
+  const entries = await storageApi.listEntries();
+  const stamp = now();
+  const json = serializeBackup(entries, stamp);
+  const url = urlApi.createObjectURL(new Blob([json], { type: 'application/json' }));
+  try {
+    const a = doc.createElement('a');
+    a.href = url;
+    a.download = backupFilename(stamp);
+    doc.body.appendChild(a);
+    a.click();
+    a.remove();
+  } finally {
+    urlApi.revokeObjectURL(url);
+  }
+}
 
 function toEpochMs(createdAt) {
   const t = typeof createdAt === 'string' ? Date.parse(createdAt) : createdAt;
@@ -117,6 +143,20 @@ export function initApp(storageApi = storage, now = () => new Date()) {
     }
     input.focus();
   });
+
+  const backupButton = document.getElementById('backup-button');
+  if (backupButton) {
+    backupButton.addEventListener('click', async () => {
+      await ready;
+      try {
+        await downloadBackup(storageApi);
+        errorEl.textContent = '';
+      } catch (err) {
+        console.error('backup failed', err);
+        errorEl.textContent = BACKUP_ERROR_MESSAGE;
+      }
+    });
+  }
 
   return ready;
 }
