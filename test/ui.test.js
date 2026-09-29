@@ -81,12 +81,14 @@ function installDom() {
     'today-list': new FakeNode('ul'),
     'entry-error': new FakeNode('p'),
     'category-breakdown': new FakeNode('ul'),
+    'month-chart': new FakeNode('div'),
   };
   byId['total-today'].textContent = '₹0.00';
   byId['total-month'].textContent = '₹0.00';
   globalThis.document = {
     getElementById: (id) => byId[id] ?? null,
     createElement: (tag) => new FakeNode(tag),
+    createElementNS: (_ns, tag) => new FakeNode(tag),
     createTextNode: (text) => {
       const node = new FakeNode('#text');
       node._text = String(text);
@@ -330,4 +332,112 @@ test('breakdown rows use textContent so markup in a label stays literal', () => 
   assert.equal(rows.length, 1);
   assert.equal(rows[0].children.length, 0);
   assert.equal(rows[0].textContent, 'Other ₹10');
+});
+
+const cmp = (...rows) => ({
+  year: 2026,
+  month: 8,
+  categories: rows.map(([category, total, previousTotal]) => ({
+    category, total, previousTotal, change: total - previousTotal, changePercent: null,
+  })),
+});
+const pieNodes = (el) => el.children[0].children;
+
+test('index.html has the month-chart container and sw.js precaches src/monthly.js', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(html, /<[^>]*id="month-chart"/);
+  const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+  assert.ok(sw.includes("'./src/monthly.js'"));
+});
+
+test('renderMonthChart shows the empty message when nothing was spent this month', () => {
+  const el = new FakeNode('div');
+  ui.renderMonthChart(el, cmp());
+  assert.equal(el.textContent, 'No entries this month');
+  assert.equal(el.children.length, 0);
+  ui.renderMonthChart(el, cmp(['Food', 0, 40]));
+  assert.equal(el.textContent, 'No entries this month');
+});
+
+test('renderMonthChart draws proportional path slices and a legend row per category', () => {
+  const el = new FakeNode('div');
+  ui.renderMonthChart(el, cmp(['Food', 75, 50], ['Transport', 25, 0], ['Other', 0, 10]));
+  const [svg, legend] = el.children;
+  assert.equal(svg.tag, 'svg');
+  const slices = svg.children;
+  assert.equal(slices.length, 2);
+  assert.ok(slices.every((s) => s.tag === 'path'));
+  // Food is 75% (270deg): large-arc flag 1; Transport is 25%: flag 0.
+  assert.match(slices[0].getAttribute('d'), /A 50 50 0 1 1 /);
+  assert.match(slices[1].getAttribute('d'), /A 50 50 0 0 1 /);
+  assert.notEqual(slices[0].getAttribute('fill'), slices[1].getAttribute('fill'));
+  assert.deepEqual(legend.children.map((li) => li.textContent), [
+    'Food ₹75 +₹25',
+    'Transport ₹25 new',
+    'Other ₹0 −₹10',
+  ]);
+});
+
+test('renderMonthChart draws a full circle for a single category', () => {
+  const el = new FakeNode('div');
+  ui.renderMonthChart(el, cmp(['Food', 120, 0]));
+  assert.equal(pieNodes(el).length, 1);
+  assert.equal(pieNodes(el)[0].tag, 'circle');
+});
+
+test('a single positive category that is not first still gets one circle, in its own colour', () => {
+  const el = new FakeNode('div');
+  ui.renderMonthChart(el, cmp(['Food', 0, 5], ['Transport', 80, 20]));
+  assert.equal(pieNodes(el).length, 1);
+  assert.equal(pieNodes(el)[0].tag, 'circle');
+  assert.equal(pieNodes(el)[0].getAttribute('data-category'), 'Transport');
+  assert.equal(el.children[1].children[1].children[0].getAttribute('style'), `background:${pieNodes(el)[0].getAttribute('fill')}`);
+});
+
+test('an unchanged category reads ±₹0, not a signed +', () => {
+  const el = new FakeNode('div');
+  ui.renderMonthChart(el, cmp(['Food', 50, 50]));
+  assert.equal(el.children[1].children[0].textContent, 'Food ₹50 ±₹0');
+});
+
+test('a negative total (refund) gets no slice, is excluded from the pie share, and keeps its true legend amount', () => {
+  const el = new FakeNode('div');
+  ui.renderMonthChart(el, cmp(['Food', 60, 0], ['Transport', 40, 0], ['Bills', -20, 0]));
+  const slices = pieNodes(el);
+  assert.equal(slices.length, 2);
+  // 60 / (60 + 40) = 60% => 216deg, a large arc; 40% => small arc.
+  assert.match(slices[0].getAttribute('d'), /A 50 50 0 1 1 /);
+  assert.match(slices[1].getAttribute('d'), /A 50 50 0 0 1 /);
+  assert.equal(el.children[1].children[2].textContent, 'Bills ₹-20 new');
+  ui.renderMonthChart(el, cmp(['Bills', -20, 0]));
+  assert.equal(el.textContent, 'No entries this month');
+});
+
+test('slice colours follow the category, not its position in the ordering', () => {
+  const a = new FakeNode('div');
+  const b = new FakeNode('div');
+  ui.renderMonthChart(a, cmp(['Food', 70, 0], ['Transport', 30, 0]));
+  ui.renderMonthChart(b, cmp(['Transport', 70, 0], ['Food', 30, 0]));
+  const fill = (el, cat) => pieNodes(el).find((n) => n.getAttribute('data-category') === cat).getAttribute('fill');
+  assert.equal(fill(a, 'Food'), fill(b, 'Food'));
+  assert.equal(fill(a, 'Transport'), fill(b, 'Transport'));
+});
+
+test('addEntry re-renders #month-chart without a reload', () => {
+  ui.render([]);
+  assert.equal(dom['month-chart'].textContent, 'No entries this month');
+  ui.addEntry({ id: 'a', amount: 120, label: 'chai', category: 'Food' });
+  assert.equal(pieNodes(dom['month-chart']).length, 1);
+  assert.match(dom['month-chart'].children[1].textContent, /₹120 new/);
+});
+
+test('entries in two categories go through addEntry into two slices and two legend rows', () => {
+  ui.addEntry({ id: 'a', amount: 300, label: 'chai', category: 'Food' });
+  ui.addEntry({ id: 'b', amount: 100, label: 'uber', category: 'Transport' });
+  const chart = dom['month-chart'];
+  const slices = pieNodes(chart);
+  assert.equal(slices.length, 2);
+  assert.deepEqual(slices.map((s) => s.getAttribute('data-category')), ['Food', 'Transport']);
+  assert.match(slices[0].getAttribute('d'), /A 50 50 0 1 1 /);
+  assert.deepEqual(chart.children[1].children.map((li) => li.textContent), ['Food ₹300 new', 'Transport ₹100 new']);
 });

@@ -59,6 +59,38 @@ li {
   color: #555;
 }
 
+#month-chart {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+#month-chart svg {
+  width: 9rem;
+  height: 9rem;
+  flex: none;
+}
+
+#month-chart .month-legend {
+  flex: 1;
+  min-width: 10rem;
+  margin: 0;
+}
+
+#month-chart .swatch {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-right: 0.5rem;
+  border-radius: 2px;
+}
+
+#month-chart .change {
+  color: #555;
+}
+
 @media (min-width: 30rem) {
   form {
     flex-direction: row;

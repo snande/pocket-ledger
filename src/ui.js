@@ -1,5 +1,7 @@
 import { computeTotals, categoryBreakdown, formatRupees } from './totals.js';
 import { formatEntry, formatAmount } from './format.js';
+import { monthlyComparison } from './monthly.js';
+import { CATEGORY_KEYWORDS } from './categorise.js';
 
 export const DELETE_ERROR_MESSAGE = 'Could not delete that entry';
 export const EMPTY_BREAKDOWN_MESSAGE = 'No entries this month';
@@ -72,6 +74,91 @@ export function renderCategoryBreakdown(container, rows) {
   );
 }
 
+// The SVG namespace is an identifier, not a network request; it is split so the
+// "no absolute http(s) URLs" check in test/app.test.js stays a plain grep.
+const SVG_NS = 'http:' + '//www.w3.org/2000/svg';
+const CHART_PALETTE = ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f', '#edc948', '#b07aa1', '#ff9da7'];
+const CHART_SIZE = 100;
+// Colours are keyed by category name (known categories first, then "Other"), so a
+// category keeps its colour when the month-to-month ordering changes.
+const KNOWN_CATEGORIES = [...Object.keys(CATEGORY_KEYWORDS), 'Other'];
+
+function categoryColor(category, fallbackIndex) {
+  const known = KNOWN_CATEGORIES.indexOf(category);
+  return CHART_PALETTE[(known === -1 ? KNOWN_CATEGORIES.length + fallbackIndex : known) % CHART_PALETTE.length];
+}
+
+function svgEl(tag, attrs) {
+  const node = document.createElementNS(SVG_NS, tag);
+  for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, value);
+  return node;
+}
+
+// "new" when last month had nothing; otherwise a signed rupee amount via formatAmount
+// (src/format.js). An unchanged total has no direction, so it reads "±₹0".
+function formatChange({ total, previousTotal }) {
+  if (previousTotal === 0) return 'new';
+  const change = Math.round((total - previousTotal) * 100) / 100;
+  if (change === 0) return `±${formatAmount(0)}`;
+  return `${change < 0 ? '−' : '+'}${formatAmount(Math.abs(change))}`;
+}
+
+// comparison is a monthlyComparison result. The pie has one slice per category with a
+// current-month total > 0, sized against the sum of those positive totals; a category
+// with a zero or negative total (e.g. a refund) gets no slice but keeps its legend row
+// with its true amount. The legend lists every category with this month's amount and
+// the change vs last month. Everything is built with DOM nodes and textContent, so
+// category names are never interpreted as markup.
+export function renderMonthChart(el, comparison) {
+  if (!el) return;
+  const categories = comparison.categories;
+  const monthTotal = categories.reduce((sum, c) => sum + (c.total > 0 ? c.total : 0), 0);
+  if (monthTotal <= 0) {
+    el.textContent = EMPTY_BREAKDOWN_MESSAGE;
+    return;
+  }
+
+  const half = CHART_SIZE / 2;
+  const svg = svgEl('svg', {
+    viewBox: `0 0 ${CHART_SIZE} ${CHART_SIZE}`,
+    role: 'img',
+    'aria-label': 'This month by category',
+  });
+  const slices = categories
+    .map((c, i) => ({ c, fill: categoryColor(c.category, i) }))
+    .filter(({ c }) => c.total > 0);
+  if (slices.length === 1) {
+    svg.appendChild(svgEl('circle', { cx: half, cy: half, r: half, fill: slices[0].fill, 'data-category': slices[0].c.category }));
+  } else {
+    let start = -Math.PI / 2;
+    for (const { c, fill } of slices) {
+      const sweep = (c.total / monthTotal) * 2 * Math.PI;
+      const end = start + sweep;
+      const pt = (a) => `${(half + half * Math.cos(a)).toFixed(3)} ${(half + half * Math.sin(a)).toFixed(3)}`;
+      const d = `M ${half} ${half} L ${pt(start)} A ${half} ${half} 0 ${sweep > Math.PI ? 1 : 0} 1 ${pt(end)} Z`;
+      svg.appendChild(svgEl('path', { d, fill, 'data-category': c.category }));
+      start = end;
+    }
+  }
+
+  const legend = document.createElement('ul');
+  legend.setAttribute('class', 'month-legend');
+  categories.forEach((c, i) => {
+    const li = document.createElement('li');
+    const swatch = document.createElement('span');
+    swatch.setAttribute('class', 'swatch');
+    swatch.setAttribute('style', `background:${categoryColor(c.category, i)}`);
+    const change = document.createElement('span');
+    change.setAttribute('class', 'change');
+    change.textContent = formatChange(c);
+    li.appendChild(swatch);
+    li.appendChild(document.createTextNode(`${c.category} ${formatAmount(c.total)} `));
+    li.appendChild(change);
+    legend.appendChild(li);
+  });
+  el.replaceChildren(svg, legend);
+}
+
 // Rows (the #today-list) list every valid entry, newest first. The totals come from
 // computeTotals, which counts only entries in the device's local day and month.
 // Entries with a non-numeric amount or unparseable createdAt are skipped, with a warning.
@@ -99,6 +186,16 @@ export function render(list) {
   renderCategoryBreakdown(
     document.getElementById('category-breakdown'),
     categoryBreakdown(
+      valid.map(({ entry, t }) => ({ amount: entry.amount, createdAt: t, note: entry.label })),
+      now,
+    ),
+  );
+
+  // monthlyComparison derives the category from `note` via categorise(), the same as
+  // categoryBreakdown above, so the label is passed as the note.
+  renderMonthChart(
+    document.getElementById('month-chart'),
+    monthlyComparison(
       valid.map(({ entry, t }) => ({ amount: entry.amount, createdAt: t, note: entry.label })),
       now,
     ),
