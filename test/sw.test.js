@@ -46,6 +46,12 @@ test('cache name is versioned with the pocket-ledger-shell- prefix', () => {
   assert.equal(exports.CACHE, 'pocket-ledger-shell-v2');
 });
 
+test('PRECACHE_URLS includes both new PNG icon paths', () => {
+  const { PRECACHE_URLS } = loadWorker().exports;
+  assert.ok(PRECACHE_URLS.includes('./icons/icon-192.png'), 'PRECACHE_URLS missing icon-192.png');
+  assert.ok(PRECACHE_URLS.includes('./icons/icon-512.png'), 'PRECACHE_URLS missing icon-512.png');
+});
+
 test('PRECACHE_URLS starts with the five shell entries and every entry exists on disk', () => {
   const urls = [...loadWorker().exports.PRECACHE_URLS];
   assert.deepEqual(urls.slice(0, 5), [

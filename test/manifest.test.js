@@ -27,6 +27,8 @@ test('manifest icons cover 192x192 and 512x512 with relative existing paths', ()
     assert.ok(existsSync(fileURLToPath(new URL(icon.src, root))), `missing icon: ${icon.src}`);
   }
 
+  // Android's installability check requires raster PNG icons at 192x192 and
+  // 512x512; each entry below is asserted by its src, sizes and type fields.
   const png192 = manifest.icons.find(
     (icon) => icon.src === 'icons/icon-192.png' && icon.sizes === '192x192' && icon.type === 'image/png',
   );

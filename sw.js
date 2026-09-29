@@ -16,6 +16,8 @@ const PRECACHE_URLS = [
   './src/ui.js',
   './src/totals.js',
   './src/format.js',
+  // Raster app icons: added to PRECACHE_URLS so Android's installability
+  // check and offline installs both find them.
   './icons/icon-192.png',
   './icons/icon-512.png',
 ];
