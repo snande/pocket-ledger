@@ -82,7 +82,10 @@ function installDom() {
     'entry-error': new FakeNode('p'),
     'category-breakdown': new FakeNode('ul'),
     'month-chart': new FakeNode('div'),
+    'search-input': new FakeNode('input'),
+    'search-results': new FakeNode('ul'),
   };
+  byId['search-input'].value = '';
   byId['total-today'].textContent = '₹0.00';
   byId['total-month'].textContent = '₹0.00';
   globalThis.document = {
@@ -440,4 +443,36 @@ test('entries in two categories go through addEntry into two slices and two lege
   assert.deepEqual(slices.map((s) => s.getAttribute('data-category')), ['Food', 'Transport']);
   assert.match(slices[0].getAttribute('d'), /A 50 50 0 1 1 /);
   assert.deepEqual(chart.children[1].children.map((li) => li.textContent), ['Food ₹300 new', 'Transport ₹100 new']);
+});
+
+test('index.html has the search input and results container', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(html, /<input[^>]*id="search-input"/);
+  assert.match(html, /<ul[^>]*id="search-results"/);
+});
+
+test('refreshSearch lists matching entries with note, date and amount, newest first', () => {
+  ui.addEntry({ id: 'a', amount: 20, label: 'masala chai', category: 'Food', createdAt: '2026-03-12T10:00:00Z' });
+  ui.addEntry({ id: 'b', amount: 500, label: 'petrol', category: 'Travel', createdAt: '2026-03-13T10:00:00Z' });
+  dom['search-input'].value = 'chai';
+  ui.refreshSearch();
+  const rows = dom['search-results'].children;
+  assert.equal(rows.length, 1);
+  assert.match(rows[0].textContent, /^masala chai .*2026.* ₹20$/);
+});
+
+test('search results refresh when an entry is added after the query was typed', () => {
+  dom['search-input'].value = 'chai';
+  ui.refreshSearch();
+  assert.equal(dom['search-results'].children[0].textContent, ui.NO_MATCHES_MESSAGE);
+  ui.addEntry(entry('a', 30));
+  assert.equal(dom['search-results'].children.length, 1);
+  assert.match(dom['search-results'].children[0].textContent, /^chai .* ₹30$/);
+});
+
+test('a blank query clears the search results', () => {
+  ui.addEntry(entry('a', 30));
+  dom['search-input'].value = '  ';
+  ui.refreshSearch();
+  assert.equal(dom['search-results'].children.length, 0);
 });

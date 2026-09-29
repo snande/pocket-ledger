@@ -1,10 +1,13 @@
 import { computeTotals, categoryBreakdown, formatRupees } from './totals.js';
-import { formatEntry, formatAmount } from './format.js';
+import { formatEntry, formatAmount, formatDate } from './format.js';
+import { searchEntries } from './search.js';
 import { monthlyComparison } from './monthly.js';
 import { CATEGORY_KEYWORDS } from './categorise.js';
 
 export const DELETE_ERROR_MESSAGE = 'Could not delete that entry';
 export const EMPTY_BREAKDOWN_MESSAGE = 'No entries this month';
+
+export const NO_MATCHES_MESSAGE = 'No matches';
 
 export const entries = [];
 
@@ -159,6 +162,44 @@ export function renderMonthChart(el, comparison) {
   el.replaceChildren(svg, legend);
 }
 
+// results are searchEntries results (storage shape: note, createdAt, amount). textContent
+// only, so notes are never interpreted as markup.
+export function renderSearchResults(container, results) {
+  if (!container) return;
+  if (results.length === 0) {
+    const li = document.createElement('li');
+    li.setAttribute('data-empty', 'true');
+    li.textContent = NO_MATCHES_MESSAGE;
+    container.replaceChildren(li);
+    return;
+  }
+  container.replaceChildren(
+    ...results.map((r) => {
+      const li = document.createElement('li');
+      li.textContent = `${r.note} ${formatDate(r.createdAt)} ${formatAmount(r.amount)}`;
+      return li;
+    }),
+  );
+}
+
+// Searches the current in-memory entries for the text in #search-input. UI entries carry
+// `label` and a string-or-number createdAt; searchEntries wants `note` and epoch ms.
+// A blank query clears the results.
+export function refreshSearch() {
+  const container = document.getElementById('search-results');
+  if (!container) return;
+  const input = document.getElementById('search-input');
+  const query = input && typeof input.value === 'string' ? input.value : '';
+  if (query.trim() === '') {
+    container.replaceChildren();
+    return;
+  }
+  const searchable = entries
+    .filter(isRenderable)
+    .map((e) => ({ ...e, note: e.label, createdAt: toEpochMs(e.createdAt) }));
+  renderSearchResults(container, searchEntries(searchable, query));
+}
+
 // Rows (the #today-list) list every valid entry, newest first. The totals come from
 // computeTotals, which counts only entries in the device's local day and month.
 // Entries with a non-numeric amount or unparseable createdAt are skipped, with a warning.
@@ -200,6 +241,8 @@ export function render(list) {
       now,
     ),
   );
+
+  refreshSearch();
 
   const listEl = document.getElementById('today-list');
   if (!listEl) return;
