@@ -227,3 +227,13 @@ test('openStore and isPersisted work when the storage API is absent', async () =
   await openStore();
   assert.equal(await isPersisted(), false);
 });
+
+test('putEntries inserts new entries and overwrites an existing id', async () => {
+  const a = await storage.addEntry({ amount: 1, note: 'a', category: 'Other', createdAt: 1 });
+  await storage.putEntries([
+    { ...a, amount: 5 },
+    { id: 'b', amount: 2, note: 'b', category: 'Other', createdAt: 2 },
+  ]);
+  const rows = await storage.listEntries();
+  assert.deepEqual(rows.map((r) => [r.id, r.amount]), [[a.id, 5], ['b', 2]]);
+});

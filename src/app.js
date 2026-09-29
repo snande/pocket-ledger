@@ -2,7 +2,7 @@ import { parseEntry } from './parse.js';
 import { categorise } from './categorise.js';
 import * as storage from './storage.js';
 import { addEntry, setEntries, setDeleteListener } from './ui.js';
-import { serializeBackup, backupFilename } from './backup.js';
+import { serializeBackup, backupFilename, parseBackup, mergeEntries } from './backup.js';
 
 export { computeTotals } from './totals.js';
 export { formatAmount, formatEntry } from './format.js';
@@ -12,6 +12,7 @@ export const SAVE_ERROR_MESSAGE = 'Could not save that entry';
 export const OPEN_ERROR_MESSAGE = 'Could not open saved entries';
 export const LOAD_ERROR_MESSAGE = 'Could not load saved entries';
 export const BACKUP_ERROR_MESSAGE = 'Could not create a backup';
+export const RESTORE_ERROR_MESSAGE = 'Could not restore that backup';
 
 // Downloads every persisted entry (read straight from storage, so no search or
 // month filter applies) as a backup JSON file via a temporary <a download>.
@@ -39,6 +40,21 @@ export async function downloadBackup(
     if (a) a.remove();
     schedule(() => urlApi.revokeObjectURL(url), 0);
   }
+}
+
+// Merges a chosen backup file into the persisted entries. Parsing and merging
+// happen before any write, so an invalid file leaves storage untouched.
+// Resolves to how many entries were added.
+export async function restoreBackup(file, storageApi) {
+  const { entries } = parseBackup(await file.text());
+  const existing = await storageApi.listEntries();
+  const merged = mergeEntries(existing, entries);
+  await storageApi.putEntries(merged);
+  return merged.length - existing.length;
+}
+
+export function restoreMessage(added) {
+  return `Restored ${added} ${added === 1 ? 'entry' : 'entries'}`;
 }
 
 function toEpochMs(createdAt) {
@@ -158,6 +174,25 @@ export function initApp(storageApi = storage, now = () => new Date()) {
       } catch (err) {
         console.error('backup failed', err);
         errorEl.textContent = BACKUP_ERROR_MESSAGE;
+      }
+    });
+  }
+
+  const restoreInput = document.getElementById('restore-input');
+  if (restoreInput) {
+    restoreInput.addEventListener('change', async () => {
+      const file = restoreInput.files && restoreInput.files[0];
+      if (!file) return;
+      try {
+        await ready;
+        const added = await restoreBackup(file, storageApi);
+        await hydrate(store, setEntries);
+        errorEl.textContent = restoreMessage(added);
+      } catch (err) {
+        console.error('restore failed', err);
+        errorEl.textContent = err instanceof Error && err.message ? err.message : RESTORE_ERROR_MESSAGE;
+      } finally {
+        restoreInput.value = '';
       }
     });
   }
