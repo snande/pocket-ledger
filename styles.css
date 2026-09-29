@@ -51,6 +51,14 @@ li {
   border-bottom: 1px solid #ddd;
 }
 
+#category-breakdown {
+  margin-top: 0.5rem;
+}
+
+#category-breakdown li[data-empty] {
+  color: #555;
+}
+
 @media (min-width: 30rem) {
   form {
     flex-direction: row;

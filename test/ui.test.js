@@ -80,6 +80,7 @@ function installDom() {
     'total-month': new FakeNode('span'),
     'today-list': new FakeNode('ul'),
     'entry-error': new FakeNode('p'),
+    'category-breakdown': new FakeNode('ul'),
   };
   byId['total-today'].textContent = '₹0.00';
   byId['total-month'].textContent = '₹0.00';
@@ -272,4 +273,61 @@ test('deleting an unknown id changes nothing', () => {
   ui.addEntry(entry('a', 10));
   assert.equal(ui.deleteEntry('missing'), false);
   assert.equal(dom['total-today'].textContent, '₹10.00');
+});
+
+test('index.html has the category-breakdown container and sw.js precaches its modules', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(html, /<ul[^>]*id="category-breakdown"/);
+  const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+  for (const file of ['./src/ui.js', './src/totals.js', './src/format.js']) {
+    assert.ok(sw.includes(`'${file}'`), `${file} missing from PRECACHE_URLS`);
+  }
+});
+
+test('the breakdown shows an empty-state message when there are no current-month entries', () => {
+  ui.render([]);
+  assert.deepEqual(dom['category-breakdown'].children.map((li) => li.textContent), [ui.EMPTY_BREAKDOWN_MESSAGE]);
+
+  const now = new Date();
+  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 15, 12).getTime();
+  ui.render([entry('a', 75, lastMonth)]);
+  assert.deepEqual(dom['category-breakdown'].children.map((li) => li.textContent), [ui.EMPTY_BREAKDOWN_MESSAGE]);
+});
+
+test('addEntry refreshes the breakdown rows in the same update as the totals', () => {
+  ui.addEntry({ id: 'a', amount: 120, label: 'chai', category: 'Food' });
+  assert.equal(dom['total-month'].textContent, '₹120.00');
+  assert.deepEqual(dom['category-breakdown'].children.map((li) => li.textContent), ['Food ₹120']);
+
+  ui.addEntry({ id: 'b', amount: 30.5, label: 'chai', category: 'Food' });
+  assert.equal(dom['total-month'].textContent, '₹150.50');
+  assert.deepEqual(dom['category-breakdown'].children.map((li) => li.textContent), ['Food ₹150.5']);
+});
+
+test('the breakdown groups by category, not label, and lists totals largest first', () => {
+  ui.setEntries([
+    { id: '1', amount: 100, label: 'chai', category: 'Food', createdAt: Date.now() },
+    { id: '2', amount: 50, label: 'lunch', category: 'Food', createdAt: Date.now() },
+    { id: '3', amount: 200, label: 'uber', category: 'Transport', createdAt: Date.now() },
+    { id: '4', amount: 20, label: 'gift', category: 'Other', createdAt: Date.now() },
+  ]);
+  assert.deepEqual(
+    dom['category-breakdown'].children.map((li) => li.textContent),
+    ['Transport ₹200', 'Food ₹150', 'Other ₹20'],
+  );
+  assert.equal(dom['total-month'].textContent, '₹370.00');
+
+  ui.deleteEntry('3');
+  assert.deepEqual(
+    dom['category-breakdown'].children.map((li) => li.textContent),
+    ['Food ₹150', 'Other ₹20'],
+  );
+});
+
+test('breakdown rows use textContent so markup in a label stays literal', () => {
+  ui.addEntry({ id: 'a', amount: 10, label: '<img src=x onerror=alert(1)>', category: 'Other' });
+  const rows = dom['category-breakdown'].children;
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].children.length, 0);
+  assert.equal(rows[0].textContent, 'Other ₹10');
 });
