@@ -43,13 +43,14 @@ const req = (url, init = {}) => ({ url, method: 'GET', mode: 'cors', ...init });
 
 test('cache name is versioned with the pocket-ledger-shell- prefix', () => {
   const { exports } = loadWorker();
-  assert.equal(exports.CACHE, 'pocket-ledger-shell-v2');
+  assert.equal(exports.CACHE, 'pocket-ledger-shell-v3');
 });
 
-test('PRECACHE_URLS includes both new PNG icon paths', () => {
+test('PRECACHE_URLS includes all PNG icon paths', () => {
   const { PRECACHE_URLS } = loadWorker().exports;
   assert.ok(PRECACHE_URLS.includes('./icons/icon-192.png'), 'PRECACHE_URLS missing icon-192.png');
   assert.ok(PRECACHE_URLS.includes('./icons/icon-512.png'), 'PRECACHE_URLS missing icon-512.png');
+  assert.ok(PRECACHE_URLS.includes('./icons/apple-touch-icon.png'), 'PRECACHE_URLS missing apple-touch-icon.png');
 });
 
 test('PRECACHE_URLS starts with the five shell entries and every entry exists on disk', () => {
@@ -100,12 +101,15 @@ test('install precaches the list into CACHE and then skips waiting', async () =>
 
 test('activate deletes stale pocket-ledger-shell- caches, keeps the current one, then claims clients', async () => {
   const { listeners, calls, exports } = loadWorker({
-    cacheKeys: ['pocket-ledger-shell-v0', 'pocket-ledger-shell-v2', 'other-cache', 'pocket-ledger-shell-old'],
+    cacheKeys: ['pocket-ledger-shell-v0', 'pocket-ledger-shell-v2', 'pocket-ledger-shell-v3', 'other-cache', 'pocket-ledger-shell-old'],
   });
-  assert.equal(exports.CACHE, 'pocket-ledger-shell-v2');
+  assert.equal(exports.CACHE, 'pocket-ledger-shell-v3');
   await dispatch(listeners.activate, {});
-  assert.deepEqual([...calls.deleted].sort(), ['pocket-ledger-shell-old', 'pocket-ledger-shell-v0']);
-  assert.ok(!calls.deleted.includes('pocket-ledger-shell-v2'));
+  assert.deepEqual(
+    [...calls.deleted].sort(),
+    ['pocket-ledger-shell-old', 'pocket-ledger-shell-v0', 'pocket-ledger-shell-v2'],
+  );
+  assert.ok(!calls.deleted.includes('pocket-ledger-shell-v3'));
   assert.ok(!calls.deleted.includes('other-cache'));
   assert.equal(calls.claim, 1);
 });

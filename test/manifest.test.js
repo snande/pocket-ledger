@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { inflateSync as zlibInflateSync } from 'node:zlib';
 
 const root = new URL('../', import.meta.url);
 const read = (path) => readFileSync(fileURLToPath(new URL(path, root)), 'utf8');
@@ -56,6 +57,35 @@ test('PNG icons have a valid signature and IHDR dimensions', () => {
   const icon512 = readPng('icons/icon-512.png');
   assert.ok(icon512.subarray(0, 8).equals(signature), 'icon-512.png missing PNG signature');
   assert.deepEqual(dimensions(icon512), { width: 512, height: 512 });
+
+  const touchIcon = readPng('icons/apple-touch-icon.png');
+  assert.ok(touchIcon.subarray(0, 8).equals(signature), 'apple-touch-icon.png missing PNG signature');
+  assert.deepEqual(dimensions(touchIcon), { width: 180, height: 180 });
+});
+
+test('apple-touch-icon.png has no transparent pixels', () => {
+  const buf = Buffer.from(readFileSync(fileURLToPath(new URL('icons/apple-touch-icon.png', root))));
+  const colorType = buf.readUInt8(25);
+  assert.equal(colorType, 6, 'expected an RGBA (color type 6) PNG');
+  const idatChunks = [];
+  let offset = 8;
+  while (offset < buf.length) {
+    const length = buf.readUInt32BE(offset);
+    const type = buf.toString('ascii', offset + 4, offset + 8);
+    if (type === 'IDAT') idatChunks.push(buf.subarray(offset + 8, offset + 8 + length));
+    offset += 12 + length;
+  }
+  const raw = zlibInflateSync(Buffer.concat(idatChunks));
+  const width = buf.readUInt32BE(16);
+  const bytesPerPixel = 4;
+  const stride = width * bytesPerPixel + 1; // +1 filter byte per scanline
+  for (let row = 0; row < raw.length / stride; row++) {
+    const rowStart = row * stride + 1; // skip filter byte (must be 0/None)
+    for (let px = 0; px < width; px++) {
+      const alpha = raw[rowStart + px * bytesPerPixel + 3];
+      assert.equal(alpha, 255, `transparent pixel at row ${row}, col ${px}`);
+    }
+  }
 });
 
 test('manifest identity fields required for Android installability resolve within the app directory', () => {
@@ -79,4 +109,24 @@ test('index.html links the manifest and a matching theme-color', () => {
   const meta = html.match(/<meta name="theme-color" content="([^"]*)">/);
   assert.ok(meta, 'theme-color meta missing');
   assert.equal(meta[1], manifest.theme_color);
+});
+
+test('index.html declares iOS home-screen tags and a matching apple-touch-icon', () => {
+  assert.ok(
+    html.includes('<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">'),
+    'apple-touch-icon link missing',
+  );
+  assert.ok(existsSync(fileURLToPath(new URL('icons/apple-touch-icon.png', root))));
+  assert.ok(html.includes('<meta name="apple-mobile-web-app-capable" content="yes">'));
+  assert.ok(html.includes('<meta name="mobile-web-app-capable" content="yes">'));
+
+  const title = html.match(/<meta name="apple-mobile-web-app-title" content="([^"]*)">/);
+  assert.ok(title, 'apple-mobile-web-app-title meta missing');
+  assert.ok(title[1].length > 0, 'apple-mobile-web-app-title content must be non-empty');
+});
+
+test('viewport meta opts into the safe-area layout', () => {
+  const viewport = html.match(/<meta name="viewport" content="([^"]*)">/);
+  assert.ok(viewport, 'viewport meta missing');
+  assert.ok(viewport[1].includes('viewport-fit=cover'), 'viewport meta missing viewport-fit=cover');
 });
