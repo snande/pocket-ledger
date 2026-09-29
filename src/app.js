@@ -15,25 +15,29 @@ export const BACKUP_ERROR_MESSAGE = 'Could not create a backup';
 
 // Downloads every persisted entry (read straight from storage, so no search or
 // month filter applies) as a backup JSON file via a temporary <a download>.
+// The object URL is revoked on a later tick: some browsers cancel the download
+// if it is revoked synchronously after the click.
 export async function downloadBackup(
   storageApi,
   now = () => Date.now(),
   doc = document,
   urlApi = URL,
+  schedule = setTimeout,
 ) {
   const entries = await storageApi.listEntries();
   const stamp = now();
   const json = serializeBackup(entries, stamp);
   const url = urlApi.createObjectURL(new Blob([json], { type: 'application/json' }));
+  let a;
   try {
-    const a = doc.createElement('a');
+    a = doc.createElement('a');
     a.href = url;
     a.download = backupFilename(stamp);
     doc.body.appendChild(a);
     a.click();
-    a.remove();
   } finally {
-    urlApi.revokeObjectURL(url);
+    if (a) a.remove();
+    schedule(() => urlApi.revokeObjectURL(url), 0);
   }
 }
 
@@ -147,8 +151,8 @@ export function initApp(storageApi = storage, now = () => new Date()) {
   const backupButton = document.getElementById('backup-button');
   if (backupButton) {
     backupButton.addEventListener('click', async () => {
-      await ready;
       try {
+        await ready;
         await downloadBackup(storageApi);
         errorEl.textContent = '';
       } catch (err) {

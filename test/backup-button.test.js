@@ -32,16 +32,23 @@ class Node {
   querySelector() { return this.input; }
   focus() {}
   remove() { this.removed = true; }
-  click() { this.clicked = true; this.events.push(`click:${this.download}`); }
+  click() {
+    this.clicked = true;
+    this.events.push(`click:${this.download}`);
+    if (this.throwOnClick) throw new Error('click failed');
+  }
   async fire(type) {
     for (const fn of this.listeners.get(type) ?? []) await fn({ preventDefault() {} });
   }
 }
 
+const nextTick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
 let dom;
 let events;
 let anchors;
 let blobs;
+let throwOnClick;
 let originalCreate;
 let originalRevoke;
 
@@ -49,6 +56,7 @@ beforeEach(() => {
   events = [];
   anchors = [];
   blobs = [];
+  throwOnClick = false;
   dom = {
     'quick-entry': new Node('form'),
     'entry-error': new Node('p'),
@@ -63,6 +71,7 @@ beforeEach(() => {
     createElement: (tag) => {
       const node = new Node(tag);
       node.events = events;
+      node.throwOnClick = throwOnClick;
       if (tag === 'a') anchors.push(node);
       return node;
     },
@@ -102,7 +111,7 @@ test('index.html shows a Backup button', () => {
   assert.match(html, /<button[^>]*id="backup-button"[^>]*>Backup<\/button>/);
 });
 
-test('clicking Backup downloads every stored entry and revokes the URL', async () => {
+test('clicking Backup downloads every stored entry and revokes the URL after the click', async () => {
   const lastMonth = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 15, 12).getTime();
   const rows = [
     { id: '1', amount: 75, note: 'rent', category: 'Other', createdAt: lastMonth },
@@ -121,8 +130,22 @@ test('clicking Backup downloads every stored entry and revokes the URL', async (
   assert.equal(anchors[0].href, 'blob:fake');
   assert.equal(anchors[0].clicked, true);
   assert.equal(anchors[0].removed, true);
-  assert.deepEqual(events, [`click:${anchors[0].download}`, 'revoke:blob:fake']);
   assert.equal(dom['entry-error'].textContent, '');
+
+  // The revoke is deferred so the browser can start the download first.
+  assert.deepEqual(events, [`click:${anchors[0].download}`]);
+  await nextTick();
+  assert.deepEqual(events, [`click:${anchors[0].download}`, 'revoke:blob:fake']);
+});
+
+test('a failing click still removes the anchor and revokes the URL', async () => {
+  await initApp(stubStorage([]));
+  throwOnClick = true;
+  await dom['backup-button'].fire('click');
+  assert.equal(anchors[0].removed, true);
+  assert.equal(dom['entry-error'].textContent, BACKUP_ERROR_MESSAGE);
+  await nextTick();
+  assert.ok(events.includes('revoke:blob:fake'));
 });
 
 test('a storage failure shows the backup error and downloads nothing', async () => {
