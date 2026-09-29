@@ -19,6 +19,7 @@ The app is deployed to GitHub Pages by `.github/workflows/pages.yml` on every pu
 ```
 
 - `computeTotals(entries, now)` returns `{ today, month }` in rupees, using the local calendar day and month of `now`. Sums are computed in integer paise, so they are exact to the paisa. It throws a `TypeError` if `entries` is not an array, `now` is not a valid `Date`, or any entry lacks a finite numeric `amount` or `createdAt`.
+- `monthlyComparison(entries, now)` (in the equally pure `src/monthly.js`) returns `{ year, month, categories }` (`month` is 0-based). Each category is `{ category, total, previousTotal, change, changePercent }`, comparing the local month of `now` with the previous one. `changePercent` is `null` when `previousTotal` is 0. Categories come from `categorise` and are sorted by `total` descending, then name ascending.
 - `formatRupees(n)` returns an `en-IN` formatted string prefixed with `₹`, e.g. `formatRupees(1234.5)` gives `"₹1,234.50"`.
 
 Run the tests with `npm test`.
