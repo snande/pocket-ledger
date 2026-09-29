@@ -1,6 +1,6 @@
 import { categorise } from './categorise.js';
 
-const rupeeFormat =new Intl.NumberFormat('en-IN', {
+const rupeeFormat = new Intl.NumberFormat('en-IN', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
@@ -66,6 +66,10 @@ export function computeTotals(entries, now) {
   return { today: todayPaise / 100, month: monthPaise / 100 };
 }
 
+// Category names come from src/categorise.js (its own 'Other' fallback covers
+// unplaceable notes), so no current-month amount is dropped. Ties on total are
+// broken by plain code-unit order of the category name, which is what the
+// capitalised category labels need.
 export function categoryBreakdown(entries, now) {
   assertValidInput(entries, now, 'categoryBreakdown');
 
