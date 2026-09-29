@@ -26,6 +26,7 @@ test('manifest icons cover 192x192 and 512x512 with relative existing paths', ()
     assert.ok(!/^([a-z]+:|\/)/i.test(icon.src), `src must be relative: ${icon.src}`);
     assert.ok(existsSync(fileURLToPath(new URL(icon.src, root))), `missing icon: ${icon.src}`);
   }
+
   const png192 = manifest.icons.find(
     (icon) => icon.src === 'icons/icon-192.png' && icon.sizes === '192x192' && icon.type === 'image/png',
   );
@@ -37,7 +38,7 @@ test('manifest icons cover 192x192 and 512x512 with relative existing paths', ()
   assert.ok(png512.length > 0, 'missing 512x512 image/png icon at icons/icon-512.png');
   assert.ok(
     png512.some((icon) => (icon.purpose || '').includes('maskable')),
-    'need a maskable 512x512 image/png icon',
+    'need a 512x512 image/png icon whose purpose includes maskable',
   );
 });
 
@@ -53,6 +54,22 @@ test('PNG icons have a valid signature and IHDR dimensions', () => {
   const icon512 = readPng('icons/icon-512.png');
   assert.ok(icon512.subarray(0, 8).equals(signature), 'icon-512.png missing PNG signature');
   assert.deepEqual(dimensions(icon512), { width: 512, height: 512 });
+});
+
+test('manifest identity fields required for Android installability resolve within the app directory', () => {
+  assert.ok(manifest.name, 'manifest name must be non-empty');
+  assert.ok(manifest.short_name, 'manifest short_name must be non-empty');
+  assert.equal(manifest.display, 'standalone');
+  assert.ok(
+    !/^([a-z]+:|\/)/i.test(manifest.start_url),
+    `start_url must resolve inside the app directory: ${manifest.start_url}`,
+  );
+  assert.ok(
+    !/^([a-z]+:|\/)/i.test(manifest.scope),
+    `scope must resolve inside the app directory: ${manifest.scope}`,
+  );
+  assert.ok(manifest.theme_color, 'manifest theme_color must be set');
+  assert.ok(manifest.background_color, 'manifest background_color must be set');
 });
 
 test('index.html links the manifest and a matching theme-color', () => {
