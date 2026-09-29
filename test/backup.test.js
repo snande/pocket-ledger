@@ -49,3 +49,8 @@ test('backupFilename uses the zero-padded local date', () => {
   assert.equal(backupFilename(new Date(2026, 11, 31, 23, 59)), 'pocket-ledger-backup-2026-12-31.json');
   assert.equal(backupFilename(new Date(2026, 0, 1, 0, 0).getTime()), 'pocket-ledger-backup-2026-01-01.json');
 });
+
+test('importing under Node works without window or localStorage', () => {
+  assert.equal(typeof globalThis.window, 'undefined');
+  assert.equal(typeof globalThis.localStorage, 'undefined');
+});

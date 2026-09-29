@@ -1,3 +1,6 @@
+// Pure module: no DOM, `localStorage` or `window` dependency, so it imports
+// cleanly under Node (same pattern as totals.js).
+
 function toDate(now, fn) {
   const date = now instanceof Date ? now : new Date(now);
   if (
@@ -31,6 +34,10 @@ export function serializeBackup(entries, now) {
   );
 }
 
+/**
+ * Download filename `pocket-ledger-backup-YYYY-MM-DD.json`, built from the
+ * local date of `now` (getFullYear / getMonth / getDate), zero-padded.
+ */
 export function backupFilename(now) {
   const d = toDate(now, 'backupFilename');
   return `pocket-ledger-backup-${pad(d.getFullYear(), 4)}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.json`;
